@@ -1,24 +1,24 @@
--- title:  voxel renderer
--- author: petet
--- desc:   build voxel scenes in the map editor
+-- title: The GARDEN
+-- author: 51ftyone
+-- desc: help the garden, the garden helps you
 -- script: lua
 
 --[[ TODO
 
-change levels
 hud that changes with the scale
 
 --]]
 
 -- voxel scene variables
 	local transparency=13 --transparency mask for all voxels
-	local num_layers=6 --the total height of the voxel data
+	local num_layers=7 --the total height of the voxel data
 	local layer_width=12
 	local layer_height=12
 	local layer_map_separation=13
 -- camera variables
 	local camera_angle=math.pi/6
 	local camera_incline=math.pi/3
+	local rotate_speed = 0.25
 	local scale=8 --tile size when rendered, in pixels
 	local cc,ss,phicos,phisin
 	cc=math.cos(camera_angle)
@@ -36,7 +36,58 @@ hud that changes with the scale
 			bg=13,
 			bgspr=0,
 		},
+		{
+			bg=13,
+			bgspr=0,
+		},
 	}
+
+	current_level = 0
+
+	function set_level(level)
+		current_level = level
+
+		for i=0 , 16 do -- for each row of the level
+			memcpy(
+				0x08000 + 240*i, -- dest for each row
+				( 0x08000 + ((240*17)*(level)) ) + 240*i ,
+				90
+			)
+		end
+	end
+	
+	set_level(1)
+-- debug stuff
+	lp=0
+	np=0
+	etg={}
+	for i=1,20 do table.insert(etg,0) end
+	fps=0
+	function FPS()
+		if t%12==0 then
+			for i=1,19 do
+			etg[i]=etg[i+1]
+			end
+			etg[20]=math.floor(et)
+			fps=math.floor(1/(et/1000))
+		end
+		if fps>60 then fps=60 end
+	rect(4,4,34,7,0)
+	print("FPS:",5,5,10)
+	print(fps,26,5,15)
+		rect(4,11,13,7,0)
+		print("et:",5,12)
+		rect(18,11,21,1,15)
+		rect(38,11,1,etg[20]/2+1,9)
+		for i=1,20 do
+		local c=11
+			if etg[i]>20 then c=4 end
+			if etg[i]>25 then c=6 end
+		rect(17+i,12,1,etg[i]/2,c)
+		end
+		print(math.floor(1000/fps),19,13)
+		pix(37,etg[20]/2+11,9)
+	end
 --
 
 player = {
@@ -64,6 +115,8 @@ player = {
 }
 
 function TIC()
+	np=time() et=np-lp lp=np -- part of FPS debug
+
 	delta_time=(time()-start_time)*0.001
 	start_time=time()
 	mouse:update()
@@ -71,40 +124,38 @@ function TIC()
 	-- update game
 	update_cam()
 	player:update()
+	if btnp(5) then set_level( current_level == 1 and 2 or 1) end
 
 	--render game
 	cls(transparency)
 	poke(0x03FF8,transparency)
-	poke(0x03FFB,0) -- hide the cursor
 	renderVoxelScene()
 
+	FPS()
 	t=t+1
 end
 
 
 mouse={ -- a better interface to the TIC-80 mouse
-	pos={x=0,y=0}, -- mouse position on screen
+	x=0, y=0, -- movement
 	fetch_data = mouse,
-	scroll = {x=0,y=0},
+	sx=0, sy=0, -- scroll
 
 	update = function (self)
+		poke(0x7FC3F,1,1) -- mouse capture
+		poke(0x03FFB,0) -- hide the cursor
 
-		self.pos.x, self.pos.y, -- position
+		self.x, self.y, -- position
 		self.L, self.M, self.R, -- buttons
-		self.scroll.x,self.scroll.y
+		self.sx,self.sy
 		= mouse.fetch_data() -- mouse reurns all nececary values
 
-		-- a small bugfix
-		if self.pos.x == 255 then self.pos.x = 0 end
-		if self.pos.y == 255 then self.pos.y = 0 end
-		self.pos.x = clamp(self.pos.x,0,240)
-		self.pos.y = clamp(self.pos.y,0,136)
 	end,
 }
 function update_cam()
-	camera_incline = (1-(mouse.pos.y/136))*(math.pi/2)
-	camera_angle = ((1-(mouse.pos.x/240))*2)*(math.pi*2)
-	scale = clamp(scale+mouse.scroll.y,4,32)
+	camera_incline = clamp(camera_incline - (mouse.y * delta_time * rotate_speed),0,math.pi/2)
+	camera_angle = camera_angle - (mouse.x * delta_time * rotate_speed)
+	scale = clamp(scale+mouse.sy,4,16)
 
 	cc=math.cos(camera_angle)
 	ss=math.sin(camera_angle)
