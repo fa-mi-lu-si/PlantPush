@@ -5,19 +5,20 @@
 
 --[[ TODO
 
+map interactions with player
 hud that changes with the scale
 
 --]]
 
 -- voxel scene variables
-	local transparency=13 --transparency mask for all voxels
+	local transparency=13 --transparency mask for voxels and background colour
 	local num_layers=7 --the total height of the voxel data
 	local layer_width=12
 	local layer_height=12
 	local layer_map_separation=13
 -- camera variables
-	local camera_angle=math.pi/6
-	local camera_incline=math.pi/3
+	local camera_angle=math.pi*1.75
+	local camera_incline=math.pi/6
 	local rotate_speed = 0.25
 	local scale=8 --tile size when rendered, in pixels
 	local cc,ss,phicos,phisin
@@ -33,20 +34,14 @@ hud that changes with the scale
 -- level data
 	levels={
 		{
-			bg=13,
-			bgspr=0,
 		},
 		{
-			bg=13,
-			bgspr=0,
 		},
 	}
 
 	current_level = 0
 
 	function set_level(level)
-		current_level = level
-
 		for i=0 , 16 do -- for each row of the level
 			memcpy(
 				0x08000 + 240*i, -- dest for each row
@@ -54,6 +49,7 @@ hud that changes with the scale
 				90
 			)
 		end
+		current_level = level
 	end
 	
 	set_level(1)
@@ -124,14 +120,16 @@ function TIC()
 	-- update game
 	update_cam()
 	player:update()
-	if btnp(5) then set_level( current_level == 1 and 2 or 1) end
+	if btnp(5) then 
+		set_level(current_level+1 > #levels and 1 or current_level+1)
+	end
 
 	--render game
 	cls(transparency)
 	poke(0x03FF8,transparency)
 	renderVoxelScene()
 
-	FPS()
+	--FPS()
 	t=t+1
 end
 
