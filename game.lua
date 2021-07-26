@@ -5,7 +5,6 @@
 
 --[[ TODO
 
-map interactions with player
 hud that changes with the scale
 
 --]]
@@ -31,8 +30,18 @@ hud that changes with the scale
 -- game variables
 	local t=0
 	start_time=time()
+	coins = 0
+-- tile data
+	tiles = {} -- tile data
+
+	tiles[65] = {
+		name = "chest",
+		run = function() coins = coins + 1  end
+	}
 -- level data
 	levels={
+		{
+		},
 		{
 		},
 		{
@@ -89,21 +98,26 @@ hud that changes with the scale
 player = {
 	pos = {x=15,y=5},
 	update = function(self)
-		dp = {x=0,y=0}
+		local dp = {x=0,y=0} -- the direction the player wants to move
 
-		r = math.floor((((camera_angle+(math.pi/4))%(math.pi*2))/(math.pi*2))*4)
+		local r = math.floor((((camera_angle+(math.pi/4))%(math.pi*2))/(math.pi*2))*4)
 		if r == 0 then n=0;s=1;e=2;w=3 elseif r == 1 then n=3;s=2;e=0;w=1 elseif r == 2 then n=1;s=0;e=3;w=2 elseif r == 3 then n=2;s=3;e=1;w=0 end
 
-		if btnp(n) then dp.y=-1
-		elseif btnp(s) then dp.y=1
-		elseif btnp(e) then dp.x=-1
-		elseif btnp(w) then dp.x=1 end
+		if btnp(n) then dp.y=-1 end
+		if btnp(s) then dp.y=1 end
+		if btnp(e) then dp.x=-1 end
+		if btnp(w) then dp.x=1 end
+
+		local target_pos = {x = self.pos.x+dp.x , y = self.pos.y+dp.y} -- the position the player wants to move into
+		local target_tile = mget(target_pos.x,target_pos.y) -- the tile in the target position
 
 		mset(self.pos.x,self.pos.y,0) -- clear where the player is
 
-		if mget(self.pos.x+dp.x,self.pos.y+dp.y)==0 then
-			self.pos.x = self.pos.x+dp.x
-			self.pos.y = self.pos.y+dp.y
+		if not fget(target_tile, 0) then -- solid tiles have flag 0 red
+			self.pos = target_pos
+		end
+		if fget(target_tile, 1) then -- interactable tiles have flag 1 orange
+			tiles[target_tile].run()
 		end
 
 		mset(self.pos.x,self.pos.y,64) -- draw the player in it's new position
@@ -129,12 +143,13 @@ function TIC()
 	poke(0x03FF8,transparency)
 	renderVoxelScene()
 
+	font("Coins : " .. coins)
 	--FPS()
 	t=t+1
 end
 
 
-mouse={ -- a better interface to the TIC-80 mouse
+mouse={
 	x=0, y=0, -- movement
 	fetch_data = mouse,
 	sx=0, sy=0, -- scroll
