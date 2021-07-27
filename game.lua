@@ -38,6 +38,21 @@ hud that changes with the scale
 		name = "chest",
 		run = function() coins = coins + 1  end
 	}
+
+	function game_to_map(game_pos)
+		return {
+			x = game_pos.x + (game_pos.z * (layer_width+1)),
+			y = game_pos.y
+		}
+	end
+
+	function map_to_game(map_pos)
+		return {
+			x = map_pos.x % (layer_width+1),
+			y = map_pos.y,
+			z = map_pos.x // (layer_width+1)
+		}
+	end
 -- level data
 	levels={
 		{
@@ -103,32 +118,7 @@ hud that changes with the scale
 	end
 -- keyboard
 	kbd = {
-		A = 01,
-		B = 02,
-		C = 03,
-		D = 04,
-		E = 05,
-		F = 06,
-		G = 07,
-		H = 08,
-		I = 09,
-		J = 10,
-		K = 11,
-		L = 12,
-		M = 13,
-		N = 14,
-		O = 15,
-		P = 16,
-		Q = 17,
-		R = 18,
-		S = 19,
-		T = 20,
-		U = 21,
-		V = 22,
-		W = 23,
-		X = 24,
-		Y = 25,
-		Z = 26,
+		A = 01, B = 02, C = 03, D = 04, E = 05, F = 06, G = 07, H = 08, I = 09, J = 10, K = 11, L = 12, M = 13, N = 14, O = 15, P = 16, Q = 17, R = 18, S = 19, T = 20, U = 21, V = 22, W = 23, X = 24, Y = 25, Z = 26,
 
 		MINUS = 37,
 		EQUALS = 38,
@@ -144,7 +134,6 @@ hud that changes with the scale
 
 		SPACE = 48,
 		TAB = 49,
-
 		RETURN = 50,
 		BACKSPACE = 51,
 		DELETE = 52,
@@ -176,15 +165,16 @@ hud that changes with the scale
 --
 
 player = {
-	pos = {x=15,y=5},
+	pos = {x=2,y=5,z=1},
 	update = function(self)
-		local dp = {x=0,y=0} -- the direction the player wants to move
 
 		-- map keyboard buttons to directions based on camera rotation
 		local r = math.floor((((camera_angle+(math.pi/4))%(math.pi*2))/(math.pi*2))*4)
-		local n,s,e,w
+		local n,s,e,w -- directons
 		if r == 0 then n="W";s="S";e="A";w="D" elseif r == 1 then n="D";s="A";e="W";w="S" elseif r == 2 then n="S";s="W";e="D";w="A" elseif r == 3 then n="A";s="D";e="S";w="W" end
 
+		-- check for input
+		local dp = {x=0,y=0,z=0} -- the direction the player wants to move
 		if keyp(kbd[n]) or keyp(kbd[alt_kbd[n]]) then
 			dp.y=-1
 		elseif keyp(kbd[s]) or keyp(kbd[alt_kbd[s]]) then
@@ -194,15 +184,28 @@ player = {
 		elseif keyp(kbd[w]) or keyp(kbd[alt_kbd[w]]) then
 			dp.x=1
 		end
+		if keyp(kbd["SPACE"]) then
+			dp.z = 1
+		end
 
-		local target_pos = {x = self.pos.x+dp.x , y = self.pos.y+dp.y} -- the position the player wants to move into
-		local target_tile = mget(target_pos.x,target_pos.y) -- the tile in the target position
+		local target_pos = {
+			x = clamp(self.pos.x+dp.x,0,layer_width-1) ,
+			y = clamp(self.pos.y+dp.y,0,layer_height-1) ,
+			z = clamp(self.pos.z+dp.z,0,num_layers-1)
+		}
+		local target_tile = mget(
+			game_to_map(target_pos).x,
+			game_to_map(target_pos).y
+		)
 
 		if not fget(target_tile, 0) then -- solid tiles have flag 0 red
-			mset(self.pos.x,self.pos.y,0) -- clear where the player is
+			mset(game_to_map(self.pos).x,game_to_map(self.pos).y,0) -- clear where the player is
+
 			self.pos = target_pos
-			mset(self.pos.x,self.pos.y,64) -- draw the player in it's new position
+
+			mset(game_to_map(self.pos).x,game_to_map(self.pos).y,64) -- draw the player in it's new position
 		end
+
 		if fget(target_tile, 1) then -- interactable tiles have flag 1 orange
 			tiles[target_tile].run()
 		end
@@ -231,6 +234,7 @@ function TIC()
 	Text(
 		"X : " .. player.pos.x .."\n"..
 		"Y : " .. player.pos.y .."\n"..
+		"Z : " .. player.pos.z .."\n"..
 		"Coins : " .. coins .."\n"
 	,180,0,false)
 	FPS()
