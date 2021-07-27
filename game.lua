@@ -17,8 +17,8 @@ hud that changes with the scale
 	local layer_map_separation=13
 -- camera variables
 	local camera_angle=math.pi*1.75
-	local camera_incline=math.pi/6
-	local rotate_speed = 0.25
+	local camera_incline=math.pi/3
+	local rotate_speed = 0.15
 	local scale=8 --tile size when rendered, in pixels
 	local cc,ss,phicos,phisin
 	cc=math.cos(camera_angle)
@@ -51,16 +51,16 @@ hud that changes with the scale
 	current_level = 0
 
 	function set_level(level)
-		for i=0 , 16 do -- for each row of the level
+		for i=0 , layer_height do -- for each row of the level
 			memcpy(
 				0x08000 + 240*i, -- dest for each row
 				( 0x08000 + ((240*17)*(level)) ) + 240*i ,
-				90
+				(layer_width+1) * num_layers
 			)
 		end
 		current_level = level
 	end
-	
+
 	set_level(1)
 -- debug stuff
 	lp=0
@@ -77,7 +77,7 @@ hud that changes with the scale
 			fps=math.floor(1/(et/1000))
 		end
 		if fps>60 then fps=60 end
-	rect(4,4,34,7,0)
+	rect(0,0,40,60,13)
 	print("FPS:",5,5,10)
 	print(fps,26,5,15)
 		rect(4,11,13,7,0)
@@ -86,12 +86,92 @@ hud that changes with the scale
 		rect(38,11,1,etg[20]/2+1,9)
 		for i=1,20 do
 		local c=11
-			if etg[i]>20 then c=4 end
-			if etg[i]>25 then c=6 end
+			if etg[i]>20 then c=7 end
+			if etg[i]>30 then c=4 end
+			if etg[i]>50 then c=2 end
 		rect(17+i,12,1,etg[i]/2,c)
 		end
 		print(math.floor(1000/fps),19,13)
 		pix(37,etg[20]/2+11,9)
+	end
+-- graphics
+	function Text(text,x,y,alt)
+		local keep = peek4(2*0x03FFC)
+		poke4(2*0x03FFC,8)
+		font(text,x,y,0,5,8,false,1,alt)
+		poke4(2*0x03FFC, keep)
+	end
+-- keyboard
+	kbd = {
+		A = 01,
+		B = 02,
+		C = 03,
+		D = 04,
+		E = 05,
+		F = 06,
+		G = 07,
+		H = 08,
+		I = 09,
+		J = 10,
+		K = 11,
+		L = 12,
+		M = 13,
+		N = 14,
+		O = 15,
+		P = 16,
+		Q = 17,
+		R = 18,
+		S = 19,
+		T = 20,
+		U = 21,
+		V = 22,
+		W = 23,
+		X = 24,
+		Y = 25,
+		Z = 26,
+
+		MINUS = 37,
+		EQUALS = 38,
+		LEFTBRACKET = 39,
+		RIGHTBRACKET = 40,
+		BACKSLASH = 41,
+		SEMICOLON = 42,
+		APOSTROPHE = 43,
+		GRAVE = 44,
+		COMMA = 45,
+		PERIOD = 46,
+		SLASH = 47,
+
+		SPACE = 48,
+		TAB = 49,
+
+		RETURN = 50,
+		BACKSPACE = 51,
+		DELETE = 52,
+		INSERT = 53,
+
+		PAGEUP = 54,
+		PAGEDOWN = 55,
+		HOME = 56,
+		END = 57,
+		UP = 58,
+		DOWN = 59,
+		LEFT = 60,
+		RIGHT = 61,
+
+		CAPSLOCK = 62,
+		CTRL = 63,
+		SHIFT = 64,
+		ALT = 65,
+	}
+	alt_kbd={ -- alternate buttons
+		W = "UP",
+		A = "LEFT",
+		S = "DOWN"	,
+		D = "RIGHT",
+	}
+	for i=0,9 do
+		kbd[i]=27+i
 	end
 --
 
@@ -100,27 +180,32 @@ player = {
 	update = function(self)
 		local dp = {x=0,y=0} -- the direction the player wants to move
 
+		-- map keyboard buttons to directions based on camera rotation
 		local r = math.floor((((camera_angle+(math.pi/4))%(math.pi*2))/(math.pi*2))*4)
-		if r == 0 then n=0;s=1;e=2;w=3 elseif r == 1 then n=3;s=2;e=0;w=1 elseif r == 2 then n=1;s=0;e=3;w=2 elseif r == 3 then n=2;s=3;e=1;w=0 end
+		local n,s,e,w
+		if r == 0 then n="W";s="S";e="A";w="D" elseif r == 1 then n="D";s="A";e="W";w="S" elseif r == 2 then n="S";s="W";e="D";w="A" elseif r == 3 then n="A";s="D";e="S";w="W" end
 
-		if btnp(n) then dp.y=-1 end
-		if btnp(s) then dp.y=1 end
-		if btnp(e) then dp.x=-1 end
-		if btnp(w) then dp.x=1 end
+		if keyp(kbd[n]) or keyp(kbd[alt_kbd[n]]) then
+			dp.y=-1
+		elseif keyp(kbd[s]) or keyp(kbd[alt_kbd[s]]) then
+			dp.y=1
+		elseif keyp(kbd[e]) or keyp(kbd[alt_kbd[e]]) then
+			dp.x=-1
+		elseif keyp(kbd[w]) or keyp(kbd[alt_kbd[w]]) then
+			dp.x=1
+		end
 
 		local target_pos = {x = self.pos.x+dp.x , y = self.pos.y+dp.y} -- the position the player wants to move into
 		local target_tile = mget(target_pos.x,target_pos.y) -- the tile in the target position
 
-		mset(self.pos.x,self.pos.y,0) -- clear where the player is
-
 		if not fget(target_tile, 0) then -- solid tiles have flag 0 red
+			mset(self.pos.x,self.pos.y,0) -- clear where the player is
 			self.pos = target_pos
+			mset(self.pos.x,self.pos.y,64) -- draw the player in it's new position
 		end
 		if fget(target_tile, 1) then -- interactable tiles have flag 1 orange
 			tiles[target_tile].run()
 		end
-
-		mset(self.pos.x,self.pos.y,64) -- draw the player in it's new position
 	end
 }
 
@@ -134,7 +219,7 @@ function TIC()
 	-- update game
 	update_cam()
 	player:update()
-	if btnp(5) then 
+	if btnp(5) then
 		set_level(current_level+1 > #levels and 1 or current_level+1)
 	end
 
@@ -143,8 +228,12 @@ function TIC()
 	poke(0x03FF8,transparency)
 	renderVoxelScene()
 
-	font("Coins : " .. coins)
-	--FPS()
+	Text(
+		"X : " .. player.pos.x .."\n"..
+		"Y : " .. player.pos.y .."\n"..
+		"Coins : " .. coins .."\n"
+	,180,0,false)
+	FPS()
 	t=t+1
 end
 
@@ -167,7 +256,7 @@ mouse={
 }
 function update_cam()
 	camera_incline = clamp(camera_incline - (mouse.y * delta_time * rotate_speed),0,math.pi/2)
-	camera_angle = camera_angle - (mouse.x * delta_time * rotate_speed)
+	camera_angle = (camera_angle - (mouse.x * delta_time * rotate_speed)) % (math.pi*2)
 	scale = clamp(scale+mouse.sy,4,16)
 
 	cc=math.cos(camera_angle)
