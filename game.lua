@@ -6,6 +6,7 @@
 --[[ TODO
 
 hud that changes with the scale
+jumping
 
 --]]
 
@@ -36,7 +37,9 @@ hud that changes with the scale
 
 	tiles[65] = {
 		name = "chest",
-		run = function() coins = coins + 1  end
+		push = function(pos,direction) -- called when the tile is pushed by the player or another tile
+			coins = coins + 1
+		end
 	}
 
 	function game_to_map(game_pos)
@@ -52,6 +55,16 @@ hud that changes with the scale
 			y = map_pos.y,
 			z = map_pos.x // (layer_width+1)
 		}
+	end
+
+	get_tile = function(pos)
+		map_pos = game_to_map(pos)
+		return mget(map_pos.x,map_pos.y)
+	end
+
+	set_tile = function(pos,tile)
+		map_pos = game_to_map(pos)
+		mset(map_pos.x,map_pos.y,tile)
 	end
 -- level data
 	levels={
@@ -118,40 +131,18 @@ hud that changes with the scale
 	end
 -- keyboard
 	kbd = {
-		A = 01, B = 02, C = 03, D = 04, E = 05, F = 06, G = 07, H = 08, I = 09, J = 10, K = 11, L = 12, M = 13, N = 14, O = 15, P = 16, Q = 17, R = 18, S = 19, T = 20, U = 21, V = 22, W = 23, X = 24, Y = 25, Z = 26,
+		A = 01, B = 02, C = 03, D = 04, E = 05, F = 06, G = 07, H = 08, I = 09, J = 10,
+		K = 11, L = 12, M = 13, N = 14, O = 15, P = 16, Q = 17, R = 18, S = 19, T = 20,
+		U = 21, V = 22, W = 23, X = 24, Y = 25, Z = 26,
 
-		MINUS = 37,
-		EQUALS = 38,
-		LEFTBRACKET = 39,
-		RIGHTBRACKET = 40,
-		BACKSLASH = 41,
-		SEMICOLON = 42,
-		APOSTROPHE = 43,
-		GRAVE = 44,
-		COMMA = 45,
-		PERIOD = 46,
-		SLASH = 47,
+		MINUS = 37, EQUALS = 38, LEFTBRACKET = 39, RIGHTBRACKET = 40, BACKSLASH = 41, SEMICOLON = 42,
+		APOSTROPHE = 43, GRAVE = 44, COMMA = 45, PERIOD = 46, SLASH = 47,
 
-		SPACE = 48,
-		TAB = 49,
-		RETURN = 50,
-		BACKSPACE = 51,
-		DELETE = 52,
-		INSERT = 53,
+		SPACE = 48, TAB = 49, RETURN = 50, BACKSPACE = 51, DELETE = 52, INSERT = 53,
 
-		PAGEUP = 54,
-		PAGEDOWN = 55,
-		HOME = 56,
-		END = 57,
-		UP = 58,
-		DOWN = 59,
-		LEFT = 60,
-		RIGHT = 61,
+		PAGEUP = 54, PAGEDOWN = 55, HOME = 56, END = 57, UP = 58, DOWN = 59, LEFT = 60, RIGHT = 61,
 
-		CAPSLOCK = 62,
-		CTRL = 63,
-		SHIFT = 64,
-		ALT = 65,
+		CAPSLOCK = 62, CTRL = 63, SHIFT = 64, ALT = 65,
 	}
 	alt_kbd={ -- alternate buttons
 		W = "UP",
@@ -166,15 +157,37 @@ hud that changes with the scale
 
 player = {
 	pos = {x=2,y=5,z=1},
+
+	jumping = false,
+	jump_allowed = true,
+
 	update = function(self)
+
+		-- check for input
+		local dp = {x=0,y=0,z=0} -- the direction the player wants to move
+
+		if fget(get_tile({x=self.pos.x,y=self.pos.y,z=self.pos.z-1}),0) then -- if the player is on solid ground
+			self.jump_allowed = true
+			self.jumping = false
+		else
+			if not self.jumping then
+				self.jump_allowed = false
+				dp.z = -1
+			end
+		end
+
+		if keyp(kbd["SPACE"]) and self.jump_allowed then
+			dp.z = 1
+			self.jumping = true
+			self.jump_allowed = false
+		end
 
 		-- map keyboard buttons to directions based on camera rotation
 		local r = math.floor((((camera_angle+(math.pi/4))%(math.pi*2))/(math.pi*2))*4)
 		local n,s,e,w -- directons
 		if r == 0 then n="W";s="S";e="A";w="D" elseif r == 1 then n="D";s="A";e="W";w="S" elseif r == 2 then n="S";s="W";e="D";w="A" elseif r == 3 then n="A";s="D";e="S";w="W" end
 
-		-- check for input
-		local dp = {x=0,y=0,z=0} -- the direction the player wants to move
+		local moved = true
 		if keyp(kbd[n]) or keyp(kbd[alt_kbd[n]]) then
 			dp.y=-1
 		elseif keyp(kbd[s]) or keyp(kbd[alt_kbd[s]]) then
@@ -183,9 +196,12 @@ player = {
 			dp.x=-1
 		elseif keyp(kbd[w]) or keyp(kbd[alt_kbd[w]]) then
 			dp.x=1
+		else
+			moved = false
 		end
-		if keyp(kbd["SPACE"]) then
-			dp.z = 1
+
+		if moved then
+			self.jumping = false
 		end
 
 		local target_pos = {
@@ -193,27 +209,26 @@ player = {
 			y = clamp(self.pos.y+dp.y,0,layer_height-1) ,
 			z = clamp(self.pos.z+dp.z,0,num_layers-1)
 		}
-		local target_tile = mget(
-			game_to_map(target_pos).x,
-			game_to_map(target_pos).y
-		)
+		local target_tile = get_tile(target_pos)
 
 		if not fget(target_tile, 0) then -- solid tiles have flag 0 red
-			mset(game_to_map(self.pos).x,game_to_map(self.pos).y,0) -- clear where the player is
-
-			self.pos = target_pos
-
-			mset(game_to_map(self.pos).x,game_to_map(self.pos).y,64) -- draw the player in it's new position
+			self:move(target_pos)
 		end
 
 		if fget(target_tile, 1) then -- interactable tiles have flag 1 orange
-			tiles[target_tile].run()
+			tiles[target_tile].push(target_pos,self.dp)
 		end
+	end,
+
+	move = function(self,pos)
+		set_tile(self.pos,0) -- clear where the player is
+		self.pos = pos
+		set_tile(self.pos,64) -- draw the player in it's new position
 	end
 }
 
 function TIC()
-	np=time() et=np-lp lp=np -- part of FPS debug
+	-- np=time() et=np-lp lp=np -- part of FPS debug
 
 	delta_time=(time()-start_time)*0.001
 	start_time=time()
@@ -232,12 +247,10 @@ function TIC()
 	renderVoxelScene()
 
 	Text(
-		"X : " .. player.pos.x .."\n"..
-		"Y : " .. player.pos.y .."\n"..
-		"Z : " .. player.pos.z .."\n"..
-		"Coins : " .. coins .."\n"
-	,180,0,false)
-	FPS()
+		"Coins : " .. coins
+		,180,0,false
+	)
+	-- FPS()
 	t=t+1
 end
 
