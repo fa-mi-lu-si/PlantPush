@@ -15,24 +15,34 @@ hud that changes with the scale
 	local layer_width=12
 	local layer_height=12
 	local layer_map_separation=13
+	
 -- camera variables
-	local camera_angle=math.pi*1.75
-	local camera_incline=math.pi*0.3
-	local rotate_speed = 0.15
+	local camera_angle=0
+	local tcamera_angle=math.pi*1.75
+	local camera_incline=0
+	local tcamera_incline=math.pi*0.3
 	local scale=0 --tile size when rendered, in pixels
-	local scale_int = 8
+	local tscale = 8
 	local cc,ss,phicos,phisin
 	cc=math.cos(camera_angle)
 	ss=math.sin(camera_angle)
 	phicos=math.cos(camera_incline)
 	phisin=math.sin(camera_incline)
+
 -- math
 	function clamp(n,low,high)return math.min(math.max(n,low),high)end
 	function lerp(a,b,t) return (1-t)*a + t*b end
+	function lerp_angle(a, b, t)
+		local function rotate(point,angle)return {x=(point.x*math.cos(angle)-point.y*math.sin(angle)),y=(point.y*math.cos(angle)+point.x*math.sin(angle))}end
+		local a_vec = rotate({x=0,y=-100},a) ; b_vec = rotate({x=0,y=-100},b)
+		local lerped_vec = {x=lerp(a_vec.x,b_vec.x,t),y=lerp(a_vec.y,b_vec.y,t)}
+		return math.pi-math.atan2(lerped_vec.x,lerped_vec.y)
+	end
 -- game variables
 	local t=0
 	start_time=time()
 	coins = 0
+
 -- tile data
 	tiles = {} -- tile data
 
@@ -49,7 +59,6 @@ hud that changes with the scale
 			y = game_pos.y
 		}
 	end
-
 	function map_to_game(map_pos)
 		return {
 			x = map_pos.x % (layer_width+1),
@@ -57,16 +66,15 @@ hud that changes with the scale
 			z = map_pos.x // (layer_width+1)
 		}
 	end
-
-	get_tile = function(pos)
+	function get_tile(pos)
 		map_pos = game_to_map(pos)
 		return mget(map_pos.x,map_pos.y)
 	end
-
-	set_tile = function(pos,tile)
+	function set_tile(pos,tile)
 		map_pos = game_to_map(pos)
 		mset(map_pos.x,map_pos.y,tile)
 	end
+
 -- level data
 	levels={
 		{
@@ -80,8 +88,15 @@ hud that changes with the scale
 	current_level = 0
 
 	function set_level(level)
-		scale = 0
-		scale_int=8
+
+		-- reset the camera
+		camera_angle=0
+		tcamera_angle=math.pi*1.75
+		camera_incline=0
+		tcamera_incline=math.pi*0.3
+		scale=0
+		tscale = 8
+
 		for i=0 , layer_height do -- for each row of the level
 			memcpy(
 				0x08000 + 240*i, -- dest for each row
@@ -93,6 +108,7 @@ hud that changes with the scale
 	end
 
 	set_level(1)
+
 -- debug stuff
 	lp=0
 	np=0
@@ -125,6 +141,7 @@ hud that changes with the scale
 		print(math.floor(1000/fps),19,13)
 		pix(37,etg[20]/2+11,9)
 	end
+
 -- graphics
 	function Text(text,x,y,alt)
 		local keep = peek4(2*0x03FFC)
@@ -132,6 +149,7 @@ hud that changes with the scale
 		font(text,x,y,0,5,8,false,1,alt)
 		poke4(2*0x03FFC, keep)
 	end
+
 -- keyboard
 	kbd = {
 		A = 01, B = 02, C = 03, D = 04, E = 05, F = 06, G = 07, H = 08, I = 09, J = 10,
@@ -156,6 +174,7 @@ hud that changes with the scale
 	for i=0,9 do
 		kbd[i]=27+i
 	end
+
 --
 
 player = {
@@ -214,13 +233,14 @@ player = {
 		}
 		local target_tile = get_tile(target_pos)
 
+		if fget(target_tile, 1) then -- interactable tiles have flag 1 orange
+			tiles[target_tile].push(target_pos,self.dp)
+		end
+
 		if not fget(target_tile, 0) then -- solid tiles have flag 0 red
 			self:move(target_pos)
 		end
 
-		if fget(target_tile, 1) then -- interactable tiles have flag 1 orange
-			tiles[target_tile].push(target_pos,self.dp)
-		end
 	end,
 
 	move = function(self,pos)
@@ -274,10 +294,13 @@ mouse={
 	end,
 }
 function update_cam()
-	camera_incline = clamp(camera_incline - (mouse.y * delta_time * rotate_speed),0,math.pi/2)
-	camera_angle = (camera_angle - (mouse.x * delta_time * rotate_speed)) % (math.pi*2)
-	scale_int = clamp(scale_int+mouse.sy,4,24)
-	scale = lerp(scale,scale_int,delta_time*4)
+	tcamera_incline = clamp(tcamera_incline - (mouse.y * delta_time * 0.15),0,math.pi/2)
+	tcamera_angle = (tcamera_angle - (mouse.x * delta_time * 0.15)) % (math.pi*2)
+	tscale= clamp(tscale+mouse.sy,4,16)
+
+	scale = lerp(scale,tscale,delta_time*4)
+	camera_angle = lerp_angle(camera_angle,tcamera_angle,delta_time*4)
+	camera_incline = lerp_angle(camera_incline,tcamera_incline,delta_time*4)
 
 	cc=math.cos(camera_angle)
 	ss=math.sin(camera_angle)
