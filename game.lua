@@ -6,7 +6,6 @@
 --[[ TODO
 
 hud that changes with the scale
-jumping
 
 --]]
 
@@ -18,16 +17,18 @@ jumping
 	local layer_map_separation=13
 -- camera variables
 	local camera_angle=math.pi*1.75
-	local camera_incline=math.pi/3
+	local camera_incline=math.pi*0.3
 	local rotate_speed = 0.15
-	local scale=8 --tile size when rendered, in pixels
+	local scale=0 --tile size when rendered, in pixels
+	local scale_int = 8
 	local cc,ss,phicos,phisin
 	cc=math.cos(camera_angle)
 	ss=math.sin(camera_angle)
 	phicos=math.cos(camera_incline)
 	phisin=math.sin(camera_incline)
 -- math
-	clamp =function(n,low,high)return math.min(math.max(n,low),high)end
+	function clamp(n,low,high)return math.min(math.max(n,low),high)end
+	function lerp(a,b,t) return (1-t)*a + t*b end
 -- game variables
 	local t=0
 	start_time=time()
@@ -79,6 +80,8 @@ jumping
 	current_level = 0
 
 	function set_level(level)
+		scale = 0
+		scale_int=8
 		for i=0 , layer_height do -- for each row of the level
 			memcpy(
 				0x08000 + 240*i, -- dest for each row
@@ -262,7 +265,6 @@ mouse={
 
 	update = function (self)
 		poke(0x7FC3F,1,1) -- mouse capture
-		poke(0x03FFB,0) -- hide the cursor
 
 		self.x, self.y, -- position
 		self.L, self.M, self.R, -- buttons
@@ -274,7 +276,8 @@ mouse={
 function update_cam()
 	camera_incline = clamp(camera_incline - (mouse.y * delta_time * rotate_speed),0,math.pi/2)
 	camera_angle = (camera_angle - (mouse.x * delta_time * rotate_speed)) % (math.pi*2)
-	scale = clamp(scale+mouse.sy,4,16)
+	scale_int = clamp(scale_int+mouse.sy,4,24)
+	scale = lerp(scale,scale_int,delta_time*4)
 
 	cc=math.cos(camera_angle)
 	ss=math.sin(camera_angle)
