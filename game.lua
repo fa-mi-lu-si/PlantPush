@@ -15,41 +15,39 @@ hud that changes with the scale
 	local layer_width=12
 	local layer_height=12
 	local layer_map_separation=13
-	
--- camera variables
-	local camera_angle=0
-	local tcamera_angle=math.pi*1.75
-	local camera_incline=0
-	local tcamera_incline=math.pi*0.3
-	local scale=0 --tile size when rendered, in pixels
-	local tscale = 8
-	local cc,ss,phicos,phisin
-	cc=math.cos(camera_angle)
-	ss=math.sin(camera_angle)
-	phicos=math.cos(camera_incline)
-	phisin=math.sin(camera_incline)
 
 -- math
 	function clamp(n,low,high)return math.min(math.max(n,low),high)end
 	function lerp(a,b,t) return (1-t)*a + t*b end
 	function lerp_angle(a, b, t)
 		local function rotate(point,angle)return {x=(point.x*math.cos(angle)-point.y*math.sin(angle)),y=(point.y*math.cos(angle)+point.x*math.sin(angle))}end
-		local a_vec = rotate({x=0,y=-100},a) ; b_vec = rotate({x=0,y=-100},b)
+		local a_vec = rotate({x=0,y=-100},a) b_vec = rotate({x=0,y=-100},b)
 		local lerped_vec = {x=lerp(a_vec.x,b_vec.x,t),y=lerp(a_vec.y,b_vec.y,t)}
 		return math.pi-math.atan2(lerped_vec.x,lerped_vec.y)
 	end
+
 -- game variables
 	local t=0
 	start_time=time()
-	coins = 0
+	current_level = 0
+	watered_plants = 0
 
 -- tile data
 	tiles = {} -- tile data
 
-	tiles[65] = {
-		name = "chest",
-		push = function(pos,direction) -- called when the tile is pushed by the player or another tile
-			coins = coins + 1
+	tiles[15] = {
+		name = "plant_pot",
+		push = function(pos,direction)
+
+			for i = 5, 3, -1 do
+				if not fget(get_tile({x=pos.x,y=pos.y,z=pos.z+1}),i) then
+					set_tile({x=pos.x,y=pos.y,z=pos.z+1},125+i)
+					if i == 3 then
+						watered_plants = watered_plants + 1
+					end
+					break
+				end
+			end
 		end
 	}
 
@@ -78,25 +76,30 @@ hud that changes with the scale
 -- level data
 	levels={
 		{
+			plants = 0
 		},
 		{
+			plants = 0
 		},
 		{
+			plants = 1
 		},
 	}
-
-	current_level = 0
 
 	function set_level(level)
 
 		-- reset the camera
-		camera_angle=0
+		camera_angle=math.pi*0.76
 		tcamera_angle=math.pi*1.75
 		camera_incline=0
 		tcamera_incline=math.pi*0.3
 		scale=0
 		tscale = 8
 
+		-- reset the game
+		watered_plants = 0
+
+		-- copy the map data
 		for i=0 , layer_height do -- for each row of the level
 			memcpy(
 				0x08000 + 240*i, -- dest for each row
@@ -107,7 +110,7 @@ hud that changes with the scale
 		current_level = level
 	end
 
-	set_level(1)
+	set_level(3)
 
 -- debug stuff
 	lp=0
@@ -124,7 +127,6 @@ hud that changes with the scale
 			fps=math.floor(1/(et/1000))
 		end
 		if fps>60 then fps=60 end
-	rect(0,0,40,60,13)
 	print("FPS:",5,5,10)
 	print(fps,26,5,15)
 		rect(4,11,13,7,0)
@@ -207,7 +209,7 @@ player = {
 		-- map keyboard buttons to directions based on camera rotation
 		local r = math.floor((((camera_angle+(math.pi/4))%(math.pi*2))/(math.pi*2))*4)
 		local n,s,e,w -- directons
-		if r == 0 then n="W";s="S";e="A";w="D" elseif r == 1 then n="D";s="A";e="W";w="S" elseif r == 2 then n="S";s="W";e="D";w="A" elseif r == 3 then n="A";s="D";e="S";w="W" end
+		if r == 0 then n="W"s="S"e="A"w="D" elseif r == 1 then n="D"s="A"e="W"w="S" elseif r == 2 then n="S"s="W"e="D"w="A" elseif r == 3 then n="A"s="D"e="S"w="W" end
 
 		local moved = true
 		if keyp(kbd[n]) or keyp(kbd[alt_kbd[n]]) then
@@ -251,7 +253,7 @@ player = {
 }
 
 function TIC()
-	-- np=time() et=np-lp lp=np -- part of FPS debug
+	np=time() et=np-lp lp=np -- part of FPS debug
 
 	delta_time=(time()-start_time)*0.001
 	start_time=time()
@@ -270,7 +272,7 @@ function TIC()
 	renderVoxelScene()
 
 	Text(
-		"Coins : " .. coins
+		watered_plants .. "/" .. levels[current_level].plants .. " plants"
 		,180,0,false
 	)
 	-- FPS()
@@ -283,14 +285,12 @@ mouse={
 	fetch_data = mouse,
 	sx=0, sy=0, -- scroll
 
-	update = function (self)
+	update = function(self)
 		poke(0x7FC3F,1,1) -- mouse capture
-
-		self.x, self.y, -- position
+		self.x, self.y,
 		self.L, self.M, self.R, -- buttons
 		self.sx,self.sy
 		= mouse.fetch_data() -- mouse reurns all nececary values
-
 	end,
 }
 function update_cam()
