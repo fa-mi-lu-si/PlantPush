@@ -31,13 +31,15 @@ hud that changes with the scale
 	start_time=time()
 	current_level = 0
 	watered_plants = 0
+	water = 0
 
 -- tile data
 	tiles = {} -- tile data
 
 	tiles[15] = {
-		name = "plant_pot",
+		name = "plant_pot_3",
 		push = function(pos,direction)
+			if water < 1 then return end
 
 			for i = 5, 3, -1 do
 				if not fget(get_tile({x=pos.x,y=pos.y,z=pos.z+1}),i) then
@@ -45,9 +47,29 @@ hud that changes with the scale
 					if i == 3 then
 						watered_plants = watered_plants + 1
 					end
+					water = water-1
 					break
 				end
 			end
+		end
+	}
+	tiles[79] = {
+		name = "plant_pot_1",
+		push = function(pos,direction)
+			if water < 1 then return end
+
+			if not fget(get_tile({x=pos.x,y=pos.y,z=pos.z+1}),3) then
+				set_tile({x=pos.x,y=pos.y,z=pos.z+1},128)
+				watered_plants = watered_plants + 1
+				water = water-1
+			end
+		end
+	}
+	tiles[14] = {
+		name = "bucket",
+		push = function(pos,direction)
+			water = water+1
+			set_tile(pos,13)
 		end
 	}
 
@@ -79,10 +101,10 @@ hud that changes with the scale
 			plants = 0
 		},
 		{
-			plants = 0
+			plants = 1
 		},
 		{
-			plants = 1
+			plants = 3
 		},
 	}
 
@@ -98,6 +120,7 @@ hud that changes with the scale
 
 		-- reset the game
 		watered_plants = 0
+		water = 1
 
 		-- copy the map data
 		for i=0 , layer_height do -- for each row of the level
@@ -272,7 +295,8 @@ function TIC()
 	renderVoxelScene()
 
 	Text(
-		watered_plants .. "/" .. levels[current_level].plants .. " plants"
+		watered_plants .. "/" .. levels[current_level].plants .. " plants" .."\n"..
+		water .. " water"
 		,180,0,false
 	)
 	-- FPS()
@@ -310,7 +334,7 @@ end
 
 --VOXEL RENDERING CODE
 	function renderVoxelScene()
-		local x1,x2,y1,y2,z
+		local x1,x2,y1,y2
 		for layer=0,num_layers-1 do
 			local tile_offset=layer_map_separation*layer
 			local tex_offset=8*tile_offset
