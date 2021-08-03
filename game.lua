@@ -38,7 +38,7 @@ hud that changes with the scale
 
 	tiles[15] = {
 		name = "plant_pot_3",
-		push = function(pos,direction)
+		run = function(pos)
 			if water < 1 then return end
 
 			for i = 5, 3, -1 do
@@ -55,7 +55,7 @@ hud that changes with the scale
 	}
 	tiles[79] = {
 		name = "plant_pot_1",
-		push = function(pos,direction)
+		run = function(pos)
 			if water < 1 then return end
 
 			if not fget(get_tile({x=pos.x,y=pos.y,z=pos.z+1}),3) then
@@ -67,11 +67,38 @@ hud that changes with the scale
 	}
 	tiles[14] = {
 		name = "bucket",
-		push = function(pos,direction)
+		run = function(pos)
 			water = water+1
 			set_tile(pos,13)
 		end
 	}
+
+	push_tile = function (pos,direction)
+
+		local target_pos = {
+			x = pos.x+direction.x,
+			y = pos.y+direction.y,
+			z = pos.z+direction.z
+		}
+		local target_tile = get_tile(target_pos)
+		if -- if the target tile is out of the level
+			target_pos.x < 0 or target_pos.x > layer_width-1
+			or target_pos.y < 0 or target_pos.y > layer_height-1
+			or target_pos.z < 0 or target_pos.z > num_layers-1
+		then
+			return
+		end
+
+		if fget(target_tile,2) then -- pushable tiles have flag 2 yellow
+			push_tile(target_pos,direction)
+			target_tile = get_tile(target_pos) -- update the target_tile
+		end
+
+		if not fget(target_tile,0) then
+			set_tile(target_pos,get_tile(pos))
+			set_tile(pos,0)
+		end
+	end
 
 	function game_to_map(game_pos)
 		return {
@@ -258,8 +285,13 @@ player = {
 		}
 		local target_tile = get_tile(target_pos)
 
+		if fget(target_tile,2) then -- pushable tiles have flag 2 yellow
+			push_tile(target_pos,dp)
+			target_tile = get_tile(target_pos) -- update the target_tile
+		end
+
 		if fget(target_tile, 1) then -- interactable tiles have flag 1 orange
-			tiles[target_tile].push(target_pos,self.dp)
+			tiles[target_tile].run(target_pos)
 		end
 
 		if not fget(target_tile, 0) then -- solid tiles have flag 0 red
@@ -284,9 +316,23 @@ function TIC()
 
 	-- update game
 	update_cam()
-	player:update()
 	if btnp(5) then
 		set_level(current_level+1 > #levels and 1 or current_level+1)
+	end
+	if keyp(kbd.R) then set_level(current_level)end
+	player:update()
+
+	-- iterate over all the tiles in the game
+	for x=0 , layer_width-1 do
+		for y=0 , layer_height-1 do
+			for z=0, num_layers-1 do
+				local pos = {x=x,y=y,z=z}
+
+				if fget(get_tile(pos),2) then
+					push_tile(pos,{x=0,y=0,z=-1})
+				end
+			end
+		end
 	end
 
 	--render game
