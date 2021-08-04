@@ -16,6 +16,13 @@ hud that changes with the scale
 	local layer_height=12
 	local layer_map_separation=13
 
+-- camera variables
+	camera_angle=math.pi
+	tcamera_angle=math.pi*1.75
+	camera_incline=0
+	tcamera_incline=math.pi*0.3
+	scale=0
+	tscale = 8
 -- math
 	function clamp(n,low,high)return math.min(math.max(n,low),high)end
 	function lerp(a,b,t) return (1-t)*a + t*b end
@@ -41,8 +48,11 @@ hud that changes with the scale
 		run = function(pos)
 			if water < 1 then return end
 
+			tile_above = get_tile({x=pos.x,y=pos.y,z=pos.z+1})
+			if fget(tile_above,0) and not fget(tile_above,5) then return end
+
 			for i = 5, 3, -1 do
-				if not fget(get_tile({x=pos.x,y=pos.y,z=pos.z+1}),i) then
+				if not fget(tile_above,i) then
 					set_tile({x=pos.x,y=pos.y,z=pos.z+1},125+i)
 					if i == 3 then
 						watered_plants = watered_plants + 1
@@ -58,11 +68,13 @@ hud that changes with the scale
 		run = function(pos)
 			if water < 1 then return end
 
-			if not fget(get_tile({x=pos.x,y=pos.y,z=pos.z+1}),3) then
-				set_tile({x=pos.x,y=pos.y,z=pos.z+1},128)
-				watered_plants = watered_plants + 1
-				water = water-1
-			end
+			tile_above = get_tile({x=pos.x,y=pos.y,z=pos.z+1})
+			if fget(tile_above,0) then return end
+
+			set_tile({x=pos.x,y=pos.y,z=pos.z+1},128)
+			set_tile(pos,15)
+			watered_plants = watered_plants + 1
+			water = water-1
 		end
 	}
 	tiles[14] = {
@@ -125,20 +137,20 @@ hud that changes with the scale
 -- level data
 	levels={
 		{
-			plants = 0
+			plants = 5
 		},
 		{
 			plants = 1
 		},
 		{
-			plants = 3
+			plants = 1
 		},
 	}
 
 	function set_level(level)
 
 		-- reset the camera
-		camera_angle=math.pi*0.76
+		camera_angle=math.pi
 		tcamera_angle=math.pi*1.75
 		camera_incline=0
 		tcamera_incline=math.pi*0.3
@@ -148,6 +160,7 @@ hud that changes with the scale
 		-- reset the game
 		watered_plants = 0
 		water = 1
+		player.pos = {x=2,y=5,z=1}
 
 		-- copy the map data
 		for i=0 , layer_height do -- for each row of the level
@@ -159,8 +172,6 @@ hud that changes with the scale
 		end
 		current_level = level
 	end
-
-	set_level(3)
 
 -- debug stuff
 	lp=0
@@ -306,6 +317,10 @@ player = {
 		set_tile(self.pos,64) -- draw the player in it's new position
 	end
 }
+
+-- initialise the game
+	set_level(1)
+--
 
 function TIC()
 	np=time() et=np-lp lp=np -- part of FPS debug
