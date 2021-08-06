@@ -3,12 +3,6 @@
 -- desc: help the garden, the garden helps you
 -- script: lua
 
---[[ TODO
-
-hud that changes with the scale
-
---]]
-
 -- voxel scene variables
 	local transparency=13 --transparency mask for voxels and background colour
 	local num_layers=7 --the total height of the voxel data
@@ -39,6 +33,7 @@ hud that changes with the scale
 	current_level = 0
 	watered_plants = 0
 	water = 0
+	max_water = 3
 
 -- tile data
 	tiles = {} -- tile data
@@ -80,8 +75,17 @@ hud that changes with the scale
 	tiles[14] = {
 		name = "bucket",
 		run = function(pos)
-			water = water+1
-			set_tile(pos,13)
+			if water < max_water then
+				water = water+1
+				set_tile(pos,13)
+			end
+		end
+	}
+	tiles[77] = {
+		name = "portal",
+		run = function(pos)
+			if level == #levels then return end
+			set_level(current_level+1)
 		end
 	}
 
@@ -138,6 +142,9 @@ hud that changes with the scale
 	levels={
 		{
 			plants = 5
+		},
+		{
+			plants = 1
 		},
 		{
 			plants = 1
@@ -303,6 +310,7 @@ player = {
 
 		if fget(target_tile, 1) then -- interactable tiles have flag 1 orange
 			tiles[target_tile].run(target_pos)
+			target_tile = get_tile(target_pos) -- just in case it changed
 		end
 
 		if not fget(target_tile, 0) then -- solid tiles have flag 0 red
@@ -335,7 +343,14 @@ function TIC()
 		set_level(current_level+1 > #levels and 1 or current_level+1)
 	end
 	if keyp(kbd.R) then set_level(current_level)end
+	
+	fset(14,2,water >= max_water) -- buckets should be pushable when water is full
 	player:update()
+
+	-- spawn a portal when all plants are watered
+	if watered_plants == levels[current_level].plants then
+		set_tile({x=2,y=5,z=1},77)
+	end
 
 	-- iterate over all the tiles in the game
 	for x=0 , layer_width-1 do
