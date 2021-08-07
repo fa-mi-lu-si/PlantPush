@@ -141,7 +141,7 @@
 -- level data
 	levels={
 		{
-			plants = 5
+			plants = 6
 		},
 		{
 			plants = 1
@@ -150,7 +150,7 @@
 			plants = 1
 		},
 		{
-			plants = 1
+			plants = 7
 		},
 	}
 
@@ -166,7 +166,7 @@
 
 		-- reset the game
 		watered_plants = 0
-		water = 1
+		water = 0
 		player.pos = {x=2,y=5,z=1}
 
 		-- copy the map data
@@ -357,9 +357,21 @@ function TIC()
 		for y=0 , layer_height-1 do
 			for z=0, num_layers-1 do
 				local pos = {x=x,y=y,z=z}
+				local tile = get_tile(pos)
 
-				if fget(get_tile(pos),2) then
+				if fget(tile,6) or fget(tile,6) then -- flags 6 (dark blue) means that a block can be affected by gravity
 					push_tile(pos,{x=0,y=0,z=-1})
+				end
+
+				if tile == 14 and get_tile({x=x,y=y,z=z+1}) == 79 then --if a plant pot is over a bucket
+					water = water+1 -- temporarily increase the water
+					tiles[79].run({x=x,y=y,z=z+1}) -- try to water the plant
+
+					if get_tile({x=x,y=y,z=z+1}) == 15 then -- if the plant was watered
+						set_tile(pos,13)
+					else
+						water = water-1
+					end
 				end
 			end
 		end
