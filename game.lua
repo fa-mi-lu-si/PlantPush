@@ -12,11 +12,14 @@
 
 -- camera variables
 	camera_angle=math.pi
-	tcamera_angle=math.pi*1.75
 	camera_incline=0
-	tcamera_incline=math.pi*0.3
 	scale=0
+
+	-- used for smooth movement
+	tcamera_angle=math.pi*1.75
+	tcamera_incline=math.pi*0.3
 	tscale = 8
+
 -- math
 	function clamp(n,low,high)return math.min(math.max(n,low),high)end
 	function lerp(a,b,t) return (1-t)*a + t*b end
@@ -35,6 +38,10 @@
 	water = 0
 	max_water = 3
 
+	-- used for smooth ui animations
+	dwatered_plants = 0
+	dwater = 0
+
 -- tile data
 	tiles = {} -- tile data
 
@@ -44,18 +51,11 @@
 			if water < 1 then return end
 
 			tile_above = get_tile({x=pos.x,y=pos.y,z=pos.z+1})
-			if fget(tile_above,0) and not fget(tile_above,5) then return end
+			if fget(tile_above,0) then return end
 
-			for i = 5, 3, -1 do
-				if not fget(tile_above,i) then
-					set_tile({x=pos.x,y=pos.y,z=pos.z+1},125+i)
-					if i == 3 then
-						watered_plants = watered_plants + 1
-					end
-					water = water-1
-					break
-				end
-			end
+			set_tile({x=pos.x,y=pos.y,z=pos.z+1},128)
+			watered_plants = watered_plants + 1
+			water = water-1
 		end
 	}
 	tiles[79] = {
@@ -96,14 +96,15 @@
 			y = pos.y+direction.y,
 			z = pos.z+direction.z
 		}
-		local target_tile = get_tile(target_pos)
-		if -- if the target tile is out of the level
+		if -- if the target position is out of the level
 			target_pos.x < 0 or target_pos.x > layer_width-1
 			or target_pos.y < 0 or target_pos.y > layer_height-1
 			or target_pos.z < 0 or target_pos.z > num_layers-1
 		then
 			return
 		end
+		local target_tile = get_tile(target_pos)
+
 
 		if fget(target_tile,2) then -- pushable tiles have flag 2 yellow
 			push_tile(target_pos,direction)
@@ -219,7 +220,23 @@
 		font(text,x,y,0,5,8,false,1,alt)
 		poke4(2*0x03FFC, keep)
 	end
-
+	function Progressbar(x,y,width,progress,color)
+		rect(
+			x,y,
+			progress*width,4,
+			color
+		)
+		line(
+			x+progress*width,y,
+			x+progress*width,y+3,
+			15
+		)
+		rectb(
+			x-1,y-1,
+			width+2,6,
+			0
+		)
+	end
 -- keyboard
 	kbd = {
 		A = 01, B = 02, C = 03, D = 04, E = 05, F = 06, G = 07, H = 08, I = 09, J = 10,
@@ -359,7 +376,7 @@ function TIC()
 				local pos = {x=x,y=y,z=z}
 				local tile = get_tile(pos)
 
-				if fget(tile,6) or fget(tile,6) then -- flags 6 (dark blue) means that a block can be affected by gravity
+				if fget(tile,6) then -- flags 6 (dark blue) means that a block can be affected by gravity
 					push_tile(pos,{x=0,y=0,z=-1})
 				end
 
@@ -382,11 +399,11 @@ function TIC()
 	poke(0x03FF8,transparency)
 	renderVoxelScene()
 
-	Text(
-		watered_plants .. "/" .. levels[current_level].plants .. " plants" .."\n"..
-		water .. " water"
-		,180,0,false
-	)
+	dwatered_plants = math.min(lerp(dwatered_plants,watered_plants,0.15),levels[current_level].plants)
+	dwater = lerp(dwater,water,0.15)
+
+	Progressbar(230-40,2,40,dwatered_plants/levels[current_level].plants, watered_plants == levels[current_level].plants and 14 or 11)
+	Progressbar(230-40,10,40,dwater/max_water,9)
 	-- FPS()
 	t=t+1
 end
