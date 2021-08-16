@@ -46,7 +46,7 @@
 	tiles = {} -- tile data
 
 	tiles[15] = {
-		name = "plant_pot_3",
+		name = "plant_pot_2",
 		run = function(pos)
 			if water < 1 then return end
 
@@ -84,7 +84,7 @@
 	tiles[77] = {
 		name = "portal",
 		run = function(pos)
-			if level == #levels then return end
+			if current_level == #levels then return end
 			set_level(current_level+1)
 		end
 	}
@@ -142,7 +142,7 @@
 -- level data
 	levels={
 		{
-			plants = 6
+			plants = 8
 		},
 		{
 			plants = 1
@@ -220,48 +220,47 @@
 		font(text,x,y,0,5,8,false,1,alt)
 		poke4(2*0x03FFC, keep)
 	end
-	function Progressbar(x,y,width,progress,color)
-		rect(
-			x,y,
-			progress*width,4,
-			color
-		)
-		line(
-			x+progress*width,y,
-			x+progress*width,y+3,
-			15
-		)
-		rectb(
-			x-1,y-1,
-			width+2,6,
-			0
-		)
+	function Progressbar(x,y,width,height,progress,color)
+		rect(x,y,width,height,13) -- background
+		rect(x+1,y+1,progress*(width-2),height-2,color) -- progressbar
+		line(x+1+(progress*(width-2)),y+1,x+1+(progress*(width-2)),y+height-2,15) -- line showing progress
 	end
--- keyboard
+
+-- input
+	input_mode = "gamepad"
+
 	kbd = {
-		A = 01, B = 02, C = 03, D = 04, E = 05, F = 06, G = 07, H = 08, I = 09, J = 10,
-		K = 11, L = 12, M = 13, N = 14, O = 15, P = 16, Q = 17, R = 18, S = 19, T = 20,
-		U = 21, V = 22, W = 23, X = 24, Y = 25, Z = 26,
-
-		MINUS = 37, EQUALS = 38, LEFTBRACKET = 39, RIGHTBRACKET = 40, BACKSLASH = 41, SEMICOLON = 42,
-		APOSTROPHE = 43, GRAVE = 44, COMMA = 45, PERIOD = 46, SLASH = 47,
-
-		SPACE = 48, TAB = 49, RETURN = 50, BACKSPACE = 51, DELETE = 52, INSERT = 53,
-
-		PAGEUP = 54, PAGEDOWN = 55, HOME = 56, END = 57, UP = 58, DOWN = 59, LEFT = 60, RIGHT = 61,
-
-		CAPSLOCK = 62, CTRL = 63, SHIFT = 64, ALT = 65,
+		W = 23,
+		A = 01,
+		S = 19,
+		D = 04,
+		aW = 58,
+		aA = 60,
+		aS = 59,
+		aD = 61,
+		Jump = 48,
+		Restart = 18,
 	}
-	alt_kbd={ -- alternate buttons
-		W = "UP",
-		A = "LEFT",
-		S = "DOWN"	,
-		D = "RIGHT",
+	btns = {
+		W = 0,
+		A = 2,
+		S = 1,
+		D = 3,
+		aW = 0,
+		aA = 2,
+		aS = 1,
+		aD = 3,
+		Jump = 4,
+		Restart = 7,
 	}
-	for i=0,9 do
-		kbd[i]=27+i
+
+	function input(action)
+		if input_mode == "keyboard" then
+			return keyp(kbd[action])
+		else
+			return btnp(btns[action]) and not btn(6)
+		end
 	end
-
 --
 
 player = {
@@ -285,7 +284,7 @@ player = {
 			end
 		end
 
-		if keyp(kbd["SPACE"]) and self.jump_allowed then
+		if input("Jump") and self.jump_allowed then
 			dp.z = 1
 			self.jumping = true
 			self.jump_allowed = false
@@ -297,13 +296,13 @@ player = {
 		if r == 0 then n="W"s="S"e="A"w="D" elseif r == 1 then n="D"s="A"e="W"w="S" elseif r == 2 then n="S"s="W"e="D"w="A" elseif r == 3 then n="A"s="D"e="S"w="W" end
 
 		local moved = true
-		if keyp(kbd[n]) or keyp(kbd[alt_kbd[n]]) then
+		if input(n) or input("a"..n) then
 			dp.y=-1
-		elseif keyp(kbd[s]) or keyp(kbd[alt_kbd[s]]) then
+		elseif input(s) or input("a"..s) then
 			dp.y=1
-		elseif keyp(kbd[e]) or keyp(kbd[alt_kbd[e]]) then
+		elseif input(e) or input("a"..e) then
 			dp.x=-1
-		elseif keyp(kbd[w]) or keyp(kbd[alt_kbd[w]]) then
+		elseif input(w) or input("a"..w) then
 			dp.x=1
 		else
 			moved = false
@@ -352,14 +351,13 @@ function TIC()
 
 	delta_time=(time()-start_time)*0.001
 	start_time=time()
-	mouse:update()
 
 	-- update game
 	update_cam()
 	if btnp(5) then
 		set_level(current_level+1 > #levels and 1 or current_level+1)
 	end
-	if keyp(kbd.R) then set_level(current_level)end
+	if input("Restart") then set_level(current_level) end
 	
 	fset(14,2,water >= max_water) -- buckets should be pushable when water is full
 	player:update()
@@ -376,7 +374,7 @@ function TIC()
 				local pos = {x=x,y=y,z=z}
 				local tile = get_tile(pos)
 
-				if fget(tile,6) then -- flags 6 (dark blue) means that a block can be affected by gravity
+				if fget(tile,6) or fget(tile,2) then -- flags 6 (dark blue) means that a block can be affected by gravity
 					push_tile(pos,{x=0,y=0,z=-1})
 				end
 
@@ -398,34 +396,38 @@ function TIC()
 	cls(transparency)
 	poke(0x03FF8,transparency)
 	renderVoxelScene()
-
-	dwatered_plants = math.min(lerp(dwatered_plants,watered_plants,0.15),levels[current_level].plants)
-	dwater = lerp(dwater,water,0.15)
-
-	Progressbar(230-40,2,40,dwatered_plants/levels[current_level].plants, watered_plants == levels[current_level].plants and 14 or 11)
-	Progressbar(230-40,10,40,dwater/max_water,9)
+	dwatered_plants = math.min(lerp(dwatered_plants,watered_plants,0.2),levels[current_level].plants)
+	dwater = lerp(dwater,water,0.2)
+	Progressbar(230-40,2,40,5,dwatered_plants/levels[current_level].plants, watered_plants == levels[current_level].plants and 14 or 11)
+	Progressbar(230-40,10,40,5,dwater/max_water,9)
 	-- FPS()
 	t=t+1
 end
 
 
-mouse={
-	x=0, y=0, -- movement
-	fetch_data = mouse,
-	sx=0, sy=0, -- scroll
-
-	update = function(self)
-		poke(0x7FC3F,1,1) -- mouse capture
-		self.x, self.y,
-		self.L, self.M, self.R, -- buttons
-		self.sx,self.sy
-		= mouse.fetch_data() -- mouse reurns all nececary values
-	end,
-}
 function update_cam()
-	tcamera_incline = clamp(tcamera_incline - (mouse.y * delta_time * 0.15),0,math.pi/2)
-	tcamera_angle = (tcamera_angle - (mouse.x * delta_time * 0.15)) % (math.pi*2)
-	tscale= clamp(tscale+mouse.sy,4,16)
+	local move = {0,0}
+	local zoom = 0
+
+	if input_mode == "keyboard" then
+		poke(0x7FC3F,1,1) -- mouse capture
+		mouse_data = ({mouse()})
+		move = {mouse_data[1],mouse_data[2]}
+		zoom = mouse_data[7]
+	elseif btn(6) then
+		if btn(1) then move[2] = 10 end
+		if btn(0) then move[2] = move[2] - 10 end
+
+		if btn(3) then move[1] = 20 end
+		if btn(2) then move[1] = move[1] - 20 end
+		
+		if btnp(5) then zoom = 1 end
+		if btnp(4) then zoom = zoom - 1 end
+	end
+
+	tcamera_incline = clamp(tcamera_incline - (move[2] * delta_time * 0.15),0,math.pi/2)
+	tcamera_angle = (tcamera_angle - (move[1] * delta_time * 0.15)) % (math.pi*2)
+	tscale= clamp(tscale+zoom,4,16)
 
 	scale = lerp(scale,tscale,delta_time*4)
 	camera_angle = lerp_angle(camera_angle,tcamera_angle,delta_time*4)
