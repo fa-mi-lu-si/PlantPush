@@ -142,13 +142,13 @@
 -- level data
 	levels={
 		{
-			plants = 8
+			plants = 7
 		},
 		{
 			plants = 1
 		},
 		{
-			plants = 1
+			plants = 3
 		},
 		{
 			plants = 7
@@ -168,7 +168,8 @@
 		-- reset the game
 		watered_plants = 0
 		water = 0
-		player.pos = {x=2,y=5,z=1}
+		player.pos = {x=2,y=5,z=3}
+		player.jumping = false
 
 		-- copy the map data
 		for i=0 , layer_height do -- for each row of the level
@@ -227,7 +228,7 @@
 	end
 
 -- input
-	input_mode = "gamepad"
+	input_mode = "keyboard"
 
 	kbd = {
 		W = 23,
@@ -280,6 +281,7 @@ player = {
 		else
 			if not self.jumping then
 				self.jump_allowed = false
+				if self.pos.z==0 then set_level(current_level) return end
 				dp.z = -1
 			end
 		end
