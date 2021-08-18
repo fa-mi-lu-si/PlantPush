@@ -36,7 +36,7 @@
 	current_level = 0
 	watered_plants = 0
 	water = 0
-	max_water = 3
+	max_water = 1
 
 	-- used for smooth ui animations
 	dwatered_plants = 0
@@ -54,23 +54,19 @@
 			if fget(tile_above,0) then return end
 
 			set_tile({x=pos.x,y=pos.y,z=pos.z+1},128)
+			set_tile(pos,143)
 			watered_plants = watered_plants + 1
 			water = water-1
+
+			-- spawn a portal when all plants are watered
+			if watered_plants == levels[current_level].plants then
+				set_tile({x=2,y=5,z=6},77)
+			end
 		end
 	}
 	tiles[79] = {
 		name = "plant_pot_1",
-		run = function(pos)
-			if water < 1 then return end
-
-			tile_above = get_tile({x=pos.x,y=pos.y,z=pos.z+1})
-			if fget(tile_above,0) then return end
-
-			set_tile({x=pos.x,y=pos.y,z=pos.z+1},128)
-			set_tile(pos,15)
-			watered_plants = watered_plants + 1
-			water = water-1
-		end
+		run = tiles[15].run
 	}
 	tiles[14] = {
 		name = "bucket",
@@ -100,11 +96,13 @@
 			target_pos.x < 0 or target_pos.x > layer_width-1
 			or target_pos.y < 0 or target_pos.y > layer_height-1
 			or target_pos.z < 0 or target_pos.z > num_layers-1
-		then
-			return
-		end
+		then return end
 		local target_tile = get_tile(target_pos)
 
+		if target_tile == 129 then -- fall into water
+			set_tile(pos,0)
+			return
+		end
 
 		if fget(target_tile,2) then -- pushable tiles have flag 2 yellow
 			push_tile(target_pos,direction)
@@ -151,7 +149,10 @@
 			plants = 3
 		},
 		{
-			plants = 7
+			plants = 3
+		},
+		{
+			plants = 1
 		},
 	}
 
@@ -321,6 +322,9 @@ player = {
 		}
 		local target_tile = get_tile(target_pos)
 
+		-- fall into water
+		if target_tile == 129 then set_level(current_level) return end
+
 		if fget(target_tile,2) then -- pushable tiles have flag 2 yellow
 			push_tile(target_pos,dp)
 			target_tile = get_tile(target_pos) -- update the target_tile
@@ -345,7 +349,7 @@ player = {
 }
 
 -- initialise the game
-	set_level(1)
+	set_level(4)
 --
 
 function TIC()
@@ -364,11 +368,6 @@ function TIC()
 	fset(14,2,water >= max_water) -- buckets should be pushable when water is full
 	player:update()
 
-	-- spawn a portal when all plants are watered
-	if watered_plants == levels[current_level].plants then
-		set_tile({x=2,y=5,z=1},77)
-	end
-
 	-- iterate over all the tiles in the game
 	for x=0 , layer_width-1 do
 		for y=0 , layer_height-1 do
@@ -376,7 +375,7 @@ function TIC()
 				local pos = {x=x,y=y,z=z}
 				local tile = get_tile(pos)
 
-				if fget(tile,6) or fget(tile,2) then -- flags 6 (dark blue) means that a block can be affected by gravity
+				if fget(tile,6) then -- flags 6 (dark blue) means that a block can be affected by gravity
 					push_tile(pos,{x=0,y=0,z=-1})
 				end
 
@@ -384,7 +383,7 @@ function TIC()
 					water = water+1 -- temporarily increase the water
 					tiles[79].run({x=x,y=y,z=z+1}) -- try to water the plant
 
-					if get_tile({x=x,y=y,z=z+1}) == 15 then -- if the plant was watered
+					if get_tile({x=x,y=y,z=z+1}) == 143 then -- if the plant was watered
 						set_tile(pos,13)
 					else
 						water = water-1
