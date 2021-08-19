@@ -3,6 +3,10 @@
 -- desc: help the garden, the garden helps you
 -- script: lua
 
+-- settings
+input_mode = "keyboard"
+--input_mode = "gamepad"
+
 -- voxel scene variables
 	local transparency=13 --transparency mask for voxels and background colour
 	local num_layers=7 --the total height of the voxel data
@@ -46,7 +50,7 @@
 	tiles = {} -- tile data
 
 	tiles[15] = {
-		name = "plant_pot_2",
+		name = "plant_pot_solid",
 		run = function(pos)
 			if water < 1 then return end
 
@@ -65,7 +69,7 @@
 		end
 	}
 	tiles[79] = {
-		name = "plant_pot_1",
+		name = "plant_pot_pushable",
 		run = tiles[15].run
 	}
 	tiles[14] = {
@@ -99,7 +103,7 @@
 		then return end
 		local target_tile = get_tile(target_pos)
 
-		if target_tile == 129 then -- fall into water
+		if (target_tile == 129) or (target_tile == 131) then -- fall into water
 			set_tile(pos,0)
 			return
 		end
@@ -140,7 +144,7 @@
 -- level data
 	levels={
 		{
-			plants = 7
+			plants = 4
 		},
 		{
 			plants = 1
@@ -152,7 +156,7 @@
 			plants = 3
 		},
 		{
-			plants = 1
+			plants = 6
 		},
 	}
 
@@ -164,7 +168,7 @@
 		camera_incline=0
 		tcamera_incline=math.pi*0.3
 		scale=0
-		tscale = 8
+		tscale = input_mode == "keyboard" and 8 or 12
 
 		-- reset the game
 		watered_plants = 0
@@ -222,14 +226,14 @@
 		font(text,x,y,0,5,8,false,1,alt)
 		poke4(2*0x03FFC, keep)
 	end
-	function Progressbar(x,y,width,height,progress,color)
+	function Progressbar(x,y,width,progress,color)
+		height = input_mode == "keyboard" and 5 or 10
 		rect(x,y,width,height,13) -- background
 		rect(x+1,y+1,progress*(width-2),height-2,color) -- progressbar
 		line(x+1+(progress*(width-2)),y+1,x+1+(progress*(width-2)),y+height-2,15) -- line showing progress
 	end
 
 -- input
-	input_mode = "keyboard"
 
 	kbd = {
 		W = 23,
@@ -253,14 +257,14 @@
 		aS = 1,
 		aD = 3,
 		Jump = 4,
-		Restart = 7,
+		Restart = 6,
 	}
 
 	function input(action)
 		if input_mode == "keyboard" then
 			return keyp(kbd[action])
 		else
-			return btnp(btns[action]) and not btn(6)
+			return btnp(btns[action]) and not btn(7)
 		end
 	end
 --
@@ -323,7 +327,7 @@ player = {
 		local target_tile = get_tile(target_pos)
 
 		-- fall into water
-		if target_tile == 129 then set_level(current_level) return end
+		if (target_tile == 129) or (target_tile == 131) then set_level(current_level) return end
 
 		if fget(target_tile,2) then -- pushable tiles have flag 2 yellow
 			push_tile(target_pos,dp)
@@ -349,7 +353,7 @@ player = {
 }
 
 -- initialise the game
-	set_level(4)
+	set_level(5)
 --
 
 function TIC()
@@ -360,7 +364,7 @@ function TIC()
 
 	-- update game
 	update_cam()
-	if btnp(5) then
+	if btnp(5) and not btn(7) then
 		set_level(current_level+1 > #levels and 1 or current_level+1)
 	end
 	if input("Restart") then set_level(current_level) end
@@ -379,14 +383,17 @@ function TIC()
 					push_tile(pos,{x=0,y=0,z=-1})
 				end
 
-				if tile == 14 and get_tile({x=x,y=y,z=z+1}) == 79 then --if a plant pot is over a bucket
-					water = water+1 -- temporarily increase the water
-					tiles[79].run({x=x,y=y,z=z+1}) -- try to water the plant
+				if tile == 14 then -- for every bucket
+					local tile_above = get_tile({x=x,y=y,z=z+1})
+					if tile_above == 79 or tile_above == 15 then --if a plant pot is over a bucket
+						water = water+1 -- temporarily increase the water
+						tiles[79].run({x=x,y=y,z=z+1}) -- try to water the plant
 
-					if get_tile({x=x,y=y,z=z+1}) == 143 then -- if the plant was watered
-						set_tile(pos,13)
-					else
-						water = water-1
+						if get_tile({x=x,y=y,z=z+1}) == 143 then -- if the plant was watered
+							set_tile(pos,13)
+						else
+							water = water-1
+						end
 					end
 				end
 			end
@@ -399,8 +406,8 @@ function TIC()
 	renderVoxelScene()
 	dwatered_plants = math.min(lerp(dwatered_plants,watered_plants,0.2),levels[current_level].plants)
 	dwater = lerp(dwater,water,0.2)
-	Progressbar(230-40,2,40,5,dwatered_plants/levels[current_level].plants, watered_plants == levels[current_level].plants and 14 or 11)
-	Progressbar(230-40,10,40,5,dwater/max_water,9)
+	Progressbar(230-40,2,40,dwatered_plants/levels[current_level].plants, watered_plants == levels[current_level].plants and 14 or 11)
+	Progressbar(230-40,12,40,dwater/max_water,9)
 	-- FPS()
 	t=t+1
 end
@@ -415,20 +422,21 @@ function update_cam()
 		mouse_data = ({mouse()})
 		move = {mouse_data[1],mouse_data[2]}
 		zoom = mouse_data[7]
-	elseif btn(6) then
+		tscale = clamp(tscale+zoom,4,16)
+	elseif btn(7) then
 		if btn(1) then move[2] = 10 end
 		if btn(0) then move[2] = move[2] - 10 end
 
 		if btn(3) then move[1] = 20 end
 		if btn(2) then move[1] = move[1] - 20 end
 		
-		if btnp(5) then zoom = 1 end
-		if btnp(4) then zoom = zoom - 1 end
+		if btnp(4) then zoom = 1 end
+		if btnp(5) then zoom = zoom - 1 end
+		tscale = clamp(tscale+zoom,8,24)
 	end
 
 	tcamera_incline = clamp(tcamera_incline - (move[2] * delta_time * 0.15),0,math.pi/2)
 	tcamera_angle = (tcamera_angle - (move[1] * delta_time * 0.15)) % (math.pi*2)
-	tscale= clamp(tscale+zoom,4,16)
 
 	scale = lerp(scale,tscale,delta_time*4)
 	camera_angle = lerp_angle(camera_angle,tcamera_angle,delta_time*4)
