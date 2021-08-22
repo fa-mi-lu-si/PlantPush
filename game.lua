@@ -38,9 +38,12 @@ input_mode = "keyboard"
 	local t=0
 	start_time=time()
 	current_level = 0
+	plants = 0 -- number of plants in the level
+	portal_pos = nil
 	watered_plants = 0
 	water = 0
 	max_water = 1
+	replce = {0,0} -- replace the first tile with the second
 
 	-- used for smooth ui animations
 	dwatered_plants = 0
@@ -55,7 +58,11 @@ input_mode = "keyboard"
 			if water < 1 then return end
 
 			tile_above = get_tile({x=pos.x,y=pos.y,z=pos.z+1})
-			if fget(tile_above,0) then return end
+			if fget(tile_above,2) then
+				push_tile({x=pos.x,y=pos.y,z=pos.z+1},{x=0,y=0,z=1})
+			elseif fget(tile_above,0) then
+				return
+			end
 
 			set_tile({x=pos.x,y=pos.y,z=pos.z+1},128)
 			set_tile(pos,143)
@@ -63,8 +70,8 @@ input_mode = "keyboard"
 			water = water-1
 
 			-- spawn a portal when all plants are watered
-			if watered_plants == levels[current_level].plants then
-				set_tile({x=2,y=5,z=6},77)
+			if watered_plants == plants then
+				set_tile(portal_pos,77)
 			end
 		end
 	}
@@ -73,7 +80,7 @@ input_mode = "keyboard"
 		run = tiles[15].run
 	}
 	tiles[14] = {
-		name = "bucket",
+		name = "bucket_pushable",
 		run = function(pos)
 			if water < max_water then
 				water = water+1
@@ -81,10 +88,14 @@ input_mode = "keyboard"
 			end
 		end
 	}
+	tiles[136] = {
+		name = "bucket",
+		run = tiles[14].run
+	}
 	tiles[77] = {
 		name = "portal",
 		run = function(pos)
-			if current_level == #levels then return end
+			if current_level == num_levels then return end
 			set_level(current_level+1)
 		end
 	}
@@ -142,23 +153,7 @@ input_mode = "keyboard"
 	end
 
 -- level data
-	levels={
-		{
-			plants = 4
-		},
-		{
-			plants = 1
-		},
-		{
-			plants = 3
-		},
-		{
-			plants = 3
-		},
-		{
-			plants = 6
-		},
-	}
+	num_levels = 7
 
 	function set_level(level)
 
@@ -173,7 +168,7 @@ input_mode = "keyboard"
 		-- reset the game
 		watered_plants = 0
 		water = 0
-		player.pos = {x=2,y=5,z=3}
+		plants = 0
 		player.jumping = false
 
 		-- copy the map data
@@ -184,6 +179,24 @@ input_mode = "keyboard"
 				(layer_width+1) * num_layers
 			)
 		end
+		for x=0 , layer_width-1 do
+			for y=0 , layer_height-1 do
+				for z=0, num_layers-1 do
+					local pos = {x=x,y=y,z=z}
+					local tile = get_tile(pos)
+
+					if tile == 64 then
+						player.pos = pos
+						portal_pos = pos
+					end
+
+					if tile == 79 or tile == 15 then
+						plants = plants + 1
+					end
+				end
+			end
+		end
+
 		current_level = level
 	end
 
@@ -353,7 +366,7 @@ player = {
 }
 
 -- initialise the game
-	set_level(5)
+	set_level(1)
 --
 
 function TIC()
@@ -365,12 +378,13 @@ function TIC()
 	-- update game
 	update_cam()
 	if btnp(5) and not btn(7) then
-		set_level(current_level+1 > #levels and 1 or current_level+1)
+		set_level(current_level+1 > num_levels and 1 or current_level+1)
 	end
 	if input("Restart") then set_level(current_level) end
 	
-	fset(14,2,water >= max_water) -- buckets should be pushable when water is full
 	player:update()
+
+	if water >= max_water then replace = {136,14} else replace = {14,136} end
 
 	-- iterate over all the tiles in the game
 	for x=0 , layer_width-1 do
@@ -379,11 +393,13 @@ function TIC()
 				local pos = {x=x,y=y,z=z}
 				local tile = get_tile(pos)
 
+				if tile == replace[1] then set_tile(pos,replace[2]) end
+
 				if fget(tile,6) then -- flags 6 (dark blue) means that a block can be affected by gravity
 					push_tile(pos,{x=0,y=0,z=-1})
 				end
 
-				if tile == 14 then -- for every bucket
+				if tile == 14 or tile == 136 then -- for every bucket
 					local tile_above = get_tile({x=x,y=y,z=z+1})
 					if tile_above == 79 or tile_above == 15 then --if a plant pot is over a bucket
 						water = water+1 -- temporarily increase the water
@@ -404,9 +420,9 @@ function TIC()
 	cls(transparency)
 	poke(0x03FF8,transparency)
 	renderVoxelScene()
-	dwatered_plants = math.min(lerp(dwatered_plants,watered_plants,0.2),levels[current_level].plants)
+	dwatered_plants = math.min(lerp(dwatered_plants,watered_plants,0.2),plants)
 	dwater = lerp(dwater,water,0.2)
-	Progressbar(230-40,2,40,dwatered_plants/levels[current_level].plants, watered_plants == levels[current_level].plants and 14 or 11)
+	Progressbar(230-40,2,40,dwatered_plants/plants, watered_plants == plants and 14 or 11)
 	Progressbar(230-40,12,40,dwater/max_water,9)
 	-- FPS()
 	t=t+1
