@@ -27,7 +27,7 @@ start_level = 0
 	-- used for smooth movement
 	tcamera_angle=math.pi*1.75
 	tcamera_incline=math.pi*0.3
-	tscale = 8
+	tscale = 4
 
 -- math
 	function clamp(n,low,high)return math.min(math.max(n,low),high)end
@@ -175,7 +175,6 @@ start_level = 0
 		camera_incline=0
 		tcamera_incline=math.pi*0.3
 		scale=0
-		if level == 0 then tscale = tscale - 3 end
 
 		-- reset the game
 		watered_plants = 0
