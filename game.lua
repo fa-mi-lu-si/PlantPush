@@ -4,8 +4,13 @@
 -- script: lua
 
 -- settings
-input_mode = "keyboard"
---input_mode = "gamepad"
+input_mode = ""
+platform = ""
+
+-- input_mode = "keyboard"
+-- platform = "desktop"
+
+start_level = 0
 
 -- voxel scene variables
 	local transparency=13 --transparency mask for voxels and background colour
@@ -27,8 +32,8 @@ input_mode = "keyboard"
 -- math
 	function clamp(n,low,high)return math.min(math.max(n,low),high)end
 	function lerp(a,b,t) return (1-t)*a + t*b end
+	function rotate(point,angle)return{x=(point.x*math.cos(angle)-point.y*math.sin(angle)),y=(point.y*math.cos(angle)+point.x*math.sin(angle))}end
 	function lerp_angle(a, b, t)
-		local function rotate(point,angle)return {x=(point.x*math.cos(angle)-point.y*math.sin(angle)),y=(point.y*math.cos(angle)+point.x*math.sin(angle))}end
 		local a_vec = rotate({x=0,y=-100},a) b_vec = rotate({x=0,y=-100},b)
 		local lerped_vec = {x=lerp(a_vec.x,b_vec.x,t),y=lerp(a_vec.y,b_vec.y,t)}
 		return math.pi-math.atan2(lerped_vec.x,lerped_vec.y)
@@ -53,14 +58,17 @@ input_mode = "keyboard"
 	tiles = {} -- tile data
 
 	tiles[15] = {
-		name = "plant_pot_solid",
+		name = "plant_pot",
 		run = function(pos)
 			if water < 1 then return end
 
 			tile_above = get_tile({x=pos.x,y=pos.y,z=pos.z+1})
 			if fget(tile_above,2) then
 				push_tile({x=pos.x,y=pos.y,z=pos.z+1},{x=0,y=0,z=1})
-			elseif fget(tile_above,0) then
+			end
+
+			tile_above = get_tile({x=pos.x,y=pos.y,z=pos.z+1})
+			if fget(tile_above,0) then
 				return
 			end
 
@@ -77,6 +85,10 @@ input_mode = "keyboard"
 	}
 	tiles[79] = {
 		name = "plant_pot_pushable",
+		run = tiles[15].run
+	}
+	tiles[135] = {
+		name = "plant_pot_no_gravity",
 		run = tiles[15].run
 	}
 	tiles[14] = {
@@ -153,7 +165,7 @@ input_mode = "keyboard"
 	end
 
 -- level data
-	num_levels = 7
+	num_levels = 9
 
 	function set_level(level)
 
@@ -163,7 +175,7 @@ input_mode = "keyboard"
 		camera_incline=0
 		tcamera_incline=math.pi*0.3
 		scale=0
-		tscale = input_mode == "keyboard" and 8 or 12
+		if level == 0 then tscale = tscale - 3 end
 
 		-- reset the game
 		watered_plants = 0
@@ -179,6 +191,17 @@ input_mode = "keyboard"
 				(layer_width+1) * num_layers
 			)
 		end
+
+		if level > 7 then
+			for i=0 , layer_height do -- for each row of the level
+				memcpy(
+					0x08000 + 240*i, -- dest for each row
+					( 0x08000 + ((240*17)*(level-8)) ) + 240*i + 120,
+					(layer_width+1) * num_layers
+				)
+			end
+		end
+
 		for x=0 , layer_width-1 do
 			for y=0 , layer_height-1 do
 				for z=0, num_layers-1 do
@@ -190,7 +213,7 @@ input_mode = "keyboard"
 						portal_pos = pos
 					end
 
-					if tile == 79 or tile == 15 then
+					if tile == 79 or tile == 15 or tile == 135 then
 						plants = plants + 1
 					end
 				end
@@ -240,7 +263,7 @@ input_mode = "keyboard"
 		poke4(2*0x03FFC, keep)
 	end
 	function Progressbar(x,y,width,progress,color)
-		height = input_mode == "keyboard" and 5 or 10
+		height = platform == "desktop" and 5 or 10
 		rect(x,y,width,height,13) -- background
 		rect(x+1,y+1,progress*(width-2),height-2,color) -- progressbar
 		line(x+1+(progress*(width-2)),y+1,x+1+(progress*(width-2)),y+height-2,15) -- line showing progress
@@ -276,7 +299,7 @@ input_mode = "keyboard"
 	function input(action)
 		if input_mode == "keyboard" then
 			return keyp(kbd[action])
-		else
+		elseif input_mode == "gamepad" then
 			return btnp(btns[action]) and not btn(7)
 		end
 	end
@@ -366,7 +389,7 @@ player = {
 }
 
 -- initialise the game
-	set_level(1)
+	set_level(start_level)
 --
 
 function TIC()
@@ -374,6 +397,25 @@ function TIC()
 
 	delta_time=(time()-start_time)*0.001
 	start_time=time()
+
+	if current_level == 0 then -- tutorial level
+		if input_mode == "" and t > 30 then
+			tcamera_angle = camera_angle+0.3
+			if keyp() then
+				input_mode = "keyboard"
+				platform = "desktop"
+				tscale = 8
+			else
+				for i=0,7 do
+					if btnp(i) then
+						input_mode = "gamepad"
+						platform = ({mouse()})[3] and "mobile" or "desktop"
+						tscale = platform == "desktop" and 8 or 12
+					end
+				end
+			end
+		end
+	end
 
 	-- update game
 	update_cam()
@@ -401,9 +443,9 @@ function TIC()
 
 				if tile == 14 or tile == 136 then -- for every bucket
 					local tile_above = get_tile({x=x,y=y,z=z+1})
-					if tile_above == 79 or tile_above == 15 then --if a plant pot is over a bucket
+					if tile_above == 79 or tile_above == 15 or tile_above == 135 then --if a plant pot is over a bucket
 						water = water+1 -- temporarily increase the water
-						tiles[79].run({x=x,y=y,z=z+1}) -- try to water the plant
+						tiles[tile_above].run({x=x,y=y,z=z+1}) -- try to water the plant
 
 						if get_tile({x=x,y=y,z=z+1}) == 143 then -- if the plant was watered
 							set_tile(pos,13)
@@ -430,16 +472,16 @@ end
 
 
 function update_cam()
+	poke(0x7FC3F,1,1) -- mouse capture
 	local move = {0,0}
 	local zoom = 0
 
 	if input_mode == "keyboard" then
-		poke(0x7FC3F,1,1) -- mouse capture
 		mouse_data = ({mouse()})
 		move = {mouse_data[1],mouse_data[2]}
 		zoom = mouse_data[7]
 		tscale = clamp(tscale+zoom,4,16)
-	elseif btn(7) then
+	elseif input_mode == "gamepad" and btn(7) then
 		if btn(1) then move[2] = 10 end
 		if btn(0) then move[2] = move[2] - 10 end
 
