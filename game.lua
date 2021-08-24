@@ -59,8 +59,9 @@ start_level = 0
 
 	tiles[15] = {
 		name = "plant_pot",
-		run = function(pos)
+		run = function(pos,dir)
 			if water < 1 then return end
+			if dir.z ~= 0 then return end
 
 			tile_above = get_tile({x=pos.x,y=pos.y,z=pos.z+1})
 			if fget(tile_above,2) then
@@ -93,7 +94,7 @@ start_level = 0
 	}
 	tiles[14] = {
 		name = "bucket_pushable",
-		run = function(pos)
+		run = function(pos,dir)
 			if water < max_water then
 				water = water+1
 				set_tile(pos,13)
@@ -106,7 +107,7 @@ start_level = 0
 	}
 	tiles[77] = {
 		name = "portal",
-		run = function(pos)
+		run = function(pos,dir)
 			if current_level == num_levels then return end
 			set_level(current_level+1)
 		end
@@ -370,7 +371,7 @@ player = {
 		end
 
 		if fget(target_tile, 1) then -- interactable tiles have flag 1 orange
-			tiles[target_tile].run(target_pos)
+			tiles[target_tile].run(target_pos,dp)
 			target_tile = get_tile(target_pos) -- just in case it changed
 		end
 
@@ -444,7 +445,7 @@ function TIC()
 					local tile_above = get_tile({x=x,y=y,z=z+1})
 					if tile_above == 79 or tile_above == 15 or tile_above == 135 then --if a plant pot is over a bucket
 						water = water+1 -- temporarily increase the water
-						tiles[tile_above].run({x=x,y=y,z=z+1}) -- try to water the plant
+						tiles[tile_above].run({x=x,y=y,z=z+1},{x=1,y=0,z=0}) -- try to water the plant
 
 						if get_tile({x=x,y=y,z=z+1}) == 143 then -- if the plant was watered
 							set_tile(pos,13)
