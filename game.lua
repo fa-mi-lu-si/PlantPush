@@ -256,17 +256,29 @@ start_level = 0
 	end
 
 -- graphics
-	function Text(text,x,y,alt)
-		local keep = peek4(2*0x03FFC)
-		poke4(2*0x03FFC,8)
-		font(text,x,y,0,5,8,false,1,alt)
-		poke4(2*0x03FFC, keep)
+	function pal(c0,c1)
+		if(c0==nil and c1==nil)then for i=0,15 do poke4(0x3FF0*2+i,i)end
+		else poke4(0x3FF0*2+c0,c1)end
 	end
-	function Progressbar(x,y,width,progress,color)
-		height = platform == "desktop" and 5 or 10
-		rect(x,y,width,height,13) -- background
-		rect(x+1,y+1,progress*(width-2),height-2,color) -- progressbar
-		line(x+1+(progress*(width-2)),y+1,x+1+(progress*(width-2)),y+height-2,15) -- line showing progress
+	function Text(text,x,y,colour,scale,alt)
+		local keep = peek4(2*0x03FFC)
+		pal(1,colour or 15)
+		poke4(2*0x03FFC,8)
+		n = font(text,x,y,0,5,8,false,scale,alt)
+		pal()
+		poke4(2*0x03FFC, keep)
+		return n
+	end
+	a={{0,-1},{-1,0},{0,1},{1,0},{-1,-1},{1,1},{1,-1},{-1,1}}
+	outlined_Text = function (text, x, y, color, outline_color, scale, alt, corners)
+		corners = corners or true
+		for i=1, corners and 8 or 4 do
+			Text(text,x+a[i][1],y+a[i][2],outline_color,scale,alt)
+		end
+		Text(text,x,y,color,scale,alt)
+	end
+	function Progressbar(x,y,width,progress,colour)
+		rect(x,y,math.min(progress,1) * width,platform == "desktop" and 3 or 10,colour) -- progressbar
 	end
 
 -- input
@@ -399,7 +411,7 @@ function TIC()
 	start_time=time()
 
 	if current_level == 0 then -- tutorial level
-		if input_mode == "" and t > 30 then
+		if input_mode == "" and t > 20 then
 			tcamera_angle = camera_angle+0.3
 			if keyp() then
 				input_mode = "keyboard"
@@ -461,6 +473,32 @@ function TIC()
 	--render game
 	cls(transparency)
 	poke(0x03FF8,transparency)
+	if current_level == 0 then -- tutorial graphics
+
+		if water == 0 and scale > 7 and watered_plants == 0 then
+			Text("Try collecting \nsome water \nfrom the buckets",140,13,15,1,false)
+		end
+		if water > 0 and watered_plants == 0 then
+			Text("Water ->\n is used\n to grow plants",140,13,15,1,false)
+		end
+		if watered_plants > 0 then
+			Text(watered_plants == plants and "All plants watered ! ->" or watered_plants.." plant"..(watered_plants > 1 and "s" or "") .." watered ->",80,2,15,1,false)
+		end
+
+		if platform == "mobile" then
+			spr(484,2,118,0,1,0,0,2,2)
+		elseif input_mode == "gamepad" then
+			spr(486,2,118,0,1,0,0,2,2)
+		elseif input_mode == "keyboard" then
+			spr(488,2,118,0,1,0,0,3,2)
+		end
+	end
+	Text(
+		current_level == 0 and "Plant Pusher" or (current_level == num_levels and "The End.\n\n\n Thanks\nfor playing :)" or "Level    "..current_level), -- background text
+		39,
+		50+((scale-(platform == "mobile" and 12 or 4))*22),
+		15,2,true
+	)
 	renderVoxelScene()
 	dwatered_plants = math.min(lerp(dwatered_plants,watered_plants,0.2),plants)
 	dwater = lerp(dwater,water,0.2)
@@ -480,7 +518,6 @@ function update_cam()
 		mouse_data = ({mouse()})
 		move = {mouse_data[1],mouse_data[2]}
 		zoom = mouse_data[7]
-		tscale = clamp(tscale+zoom,4,16)
 	elseif input_mode == "gamepad" and btn(7) then
 		if btn(1) then move[2] = 10 end
 		if btn(0) then move[2] = move[2] - 10 end
@@ -490,11 +527,15 @@ function update_cam()
 		
 		if btnp(4) then zoom = 1 end
 		if btnp(5) then zoom = zoom - 1 end
-		tscale = clamp(tscale+zoom,8,24)
 	end
 
 	tcamera_incline = clamp(tcamera_incline - (move[2] * delta_time * 0.15),0,math.pi/2)
 	tcamera_angle = (tcamera_angle - (move[1] * delta_time * 0.15)) % (math.pi*2)
+	if platform == "desktop" then
+		tscale = clamp(tscale+zoom,4,16)
+	elseif platform == "mobile" then
+		tscale = clamp(tscale+zoom,8,24)
+	end
 
 	scale = lerp(scale,tscale,delta_time*4)
 	camera_angle = lerp_angle(camera_angle,tcamera_angle,delta_time*4)
