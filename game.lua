@@ -127,7 +127,7 @@ start_level = 0
 		then return end
 		local target_tile = get_tile(target_pos)
 
-		if (target_tile == 129) or (target_tile == 131) then -- fall into water
+		if target_tile == 129 then -- fall into water
 			set_tile(pos,0)
 			return
 		end
@@ -145,15 +145,15 @@ start_level = 0
 
 	function game_to_map(game_pos)
 		return {
-			x = game_pos.x + (game_pos.z * (layer_width+1)),
+			x = game_pos.x + (game_pos.z * (layer_map_separation)),
 			y = game_pos.y
 		}
 	end
 	function map_to_game(map_pos)
 		return {
-			x = map_pos.x % (layer_width+1),
+			x = map_pos.x % (layer_map_separation),
 			y = map_pos.y,
-			z = map_pos.x // (layer_width+1)
+			z = map_pos.x // (layer_map_separation)
 		}
 	end
 	function get_tile(pos)
@@ -375,7 +375,7 @@ player = {
 		local target_tile = get_tile(target_pos)
 
 		-- fall into water
-		if (target_tile == 129) or (target_tile == 131) then set_level(current_level) return end
+		if target_tile == 129 then set_level(current_level) return end
 
 		if fget(target_tile,2) then -- pushable tiles have flag 2 yellow
 			push_tile(target_pos,dp)
@@ -529,7 +529,7 @@ function update_cam()
 		if btnp(5) then zoom = zoom - 1 end
 	end
 
-	tcamera_incline = clamp(tcamera_incline - (move[2] * delta_time * 0.15),0,math.pi/2)
+	tcamera_incline = clamp(tcamera_incline - (move[2] * delta_time * 0.1),0,math.pi/2)
 	tcamera_angle = (tcamera_angle - (move[1] * delta_time * 0.15)) % (math.pi*2)
 	if platform == "desktop" then
 		tscale = clamp(tscale+zoom,4,16)
