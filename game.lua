@@ -7,9 +7,7 @@
 input_mode = ""
 platform = ""
 
--- input_mode = "keyboard"
--- platform = "desktop"
-
+show_FPS = false
 start_level = 0
 
 -- voxel scene variables
@@ -22,19 +20,19 @@ start_level = 0
 -- camera variables
 	camera_angle=math.pi
 	camera_incline=0
-	scale=0
+	camera_zoom=0
 
 	-- used for smooth movement
 	tcamera_angle=math.pi*1.75
 	tcamera_incline=math.pi*0.3
-	tscale = 4
+	tcamera_zoom = 4
 
 -- math
 	function clamp(n,low,high)return math.min(math.max(n,low),high)end
 	function lerp(a,b,t) return (1-t)*a + t*b end
 	function rotate(point,angle)return{x=(point.x*math.cos(angle)-point.y*math.sin(angle)),y=(point.y*math.cos(angle)+point.x*math.sin(angle))}end
 	function lerp_angle(a, b, t)
-		local a_vec = rotate({x=0,y=-100},a) b_vec = rotate({x=0,y=-100},b)
+		local a_vec = rotate({x=0,y=-1},a) b_vec = rotate({x=0,y=-1},b)
 		local lerped_vec = {x=lerp(a_vec.x,b_vec.x,t),y=lerp(a_vec.y,b_vec.y,t)}
 		return math.pi-math.atan2(lerped_vec.x,lerped_vec.y)
 	end
@@ -42,6 +40,7 @@ start_level = 0
 -- game variables
 	local t=0
 	start_time=time()
+	num_levels = 10
 	current_level = 0
 	plants = 0 -- number of plants in the level
 	portal_pos = nil
@@ -166,7 +165,6 @@ start_level = 0
 	end
 
 -- level data
-	num_levels = 9
 
 	function set_level(level)
 
@@ -175,7 +173,7 @@ start_level = 0
 		tcamera_angle=math.pi*1.75
 		camera_incline=0
 		tcamera_incline=math.pi*0.3
-		scale=0
+		camera_zoom=0
 
 		-- reset the game
 		watered_plants = 0
@@ -184,19 +182,19 @@ start_level = 0
 		player.jumping = false
 
 		-- copy the map data
-		for i=0 , layer_height do -- for each row of the level
-			memcpy(
-				0x08000 + 240*i, -- dest for each row
-				( 0x08000 + ((240*17)*(level)) ) + 240*i ,
-				(layer_width+1) * num_layers
-			)
-		end
-
 		if level > 7 then
 			for i=0 , layer_height do -- for each row of the level
 				memcpy(
 					0x08000 + 240*i, -- dest for each row
 					( 0x08000 + ((240*17)*(level-8)) ) + 240*i + 120,
+					(layer_width+1) * num_layers
+				)
+			end
+		else
+			for i=0 , layer_height do -- for each row of the level
+				memcpy(
+					0x08000 + 240*i, -- dest for each row
+					( 0x08000 + ((240*17)*(level)) ) + 240*i ,
 					(layer_width+1) * num_layers
 				)
 			end
@@ -220,7 +218,9 @@ start_level = 0
 			end
 		end
 
-		current_level = level
+		if level~=0 then
+			current_level = level
+		end
 	end
 
 -- debug stuff
@@ -260,22 +260,22 @@ start_level = 0
 		if(c0==nil and c1==nil)then for i=0,15 do poke4(0x3FF0*2+i,i)end
 		else poke4(0x3FF0*2+c0,c1)end
 	end
-	function Text(text,x,y,colour,scale,alt)
+	function Text(text,x,y,colour,camera_zoom,alt)
 		local keep = peek4(2*0x03FFC)
 		pal(1,colour or 15)
 		poke4(2*0x03FFC,8)
-		n = font(text,x,y,0,5,8,false,scale,alt)
+		n = font(text,x,y,0,5,8,false,camera_zoom,alt)
 		pal()
 		poke4(2*0x03FFC, keep)
 		return n
 	end
 	a={{0,-1},{-1,0},{0,1},{1,0},{-1,-1},{1,1},{1,-1},{-1,1}}
-	outlined_Text = function (text, x, y, color, outline_color, scale, alt, corners)
+	outlined_Text = function (text, x, y, color, outline_color, camera_zoom, alt, corners)
 		corners = corners or true
 		for i=1, corners and 8 or 4 do
-			Text(text,x+a[i][1],y+a[i][2],outline_color,scale,alt)
+			Text(text,x+a[i][1],y+a[i][2],outline_color,camera_zoom,alt)
 		end
-		Text(text,x,y,color,scale,alt)
+		Text(text,x,y,color,camera_zoom,alt)
 	end
 	function Progressbar(x,y,width,progress,colour)
 		rect(x,y,math.min(progress,1) * width,platform == "desktop" and 3 or 10,colour) -- progressbar
@@ -385,6 +385,7 @@ player = {
 		if fget(target_tile, 1) then -- interactable tiles have flag 1 orange
 			tiles[target_tile].run(target_pos,dp)
 			target_tile = get_tile(target_pos) -- just in case it changed
+			if camera_zoom == 0 then target_pos = self.pos end
 		end
 
 		if not fget(target_tile, 0) then -- solid tiles have flag 0 red
@@ -402,6 +403,14 @@ player = {
 
 -- initialise the game
 	set_level(start_level)
+	if start_level~=0 then
+		tcamera_zoom = 10
+		camera_zoom = tcamera_zoom
+		camera_angle = tcamera_angle
+		camera_incline = tcamera_incline
+		input_mode = "keyboard"
+		platform = "desktop"
+	end
 --
 
 function TIC()
@@ -416,13 +425,17 @@ function TIC()
 			if keyp() then
 				input_mode = "keyboard"
 				platform = "desktop"
-				tscale = 8
+				tcamera_zoom = 8
+				tcamera_angle=math.pi*0.25
+				tcamera_incline=math.pi*0.3
 			else
 				for i=0,7 do
 					if btnp(i) then
 						input_mode = "gamepad"
 						platform = ({mouse()})[3] and "mobile" or "desktop"
-						tscale = platform == "desktop" and 8 or 12
+						tcamera_zoom = platform == "desktop" and 8 or 12
+						tcamera_angle=math.pi*0.25
+						tcamera_incline=math.pi*0.3
 					end
 				end
 			end
@@ -434,7 +447,7 @@ function TIC()
 	if btnp(5) and not btn(7) then
 		set_level(current_level+1 > num_levels and 1 or current_level+1)
 	end
-	if input("Restart") then set_level(current_level) end
+	if input("Restart") and current_level~=0 then set_level(current_level) end
 	
 	player:update()
 
@@ -475,7 +488,7 @@ function TIC()
 	poke(0x03FF8,transparency)
 	if current_level == 0 then -- tutorial graphics
 
-		if water == 0 and scale > 7 and watered_plants == 0 then
+		if water == 0 and camera_zoom > 7 and watered_plants == 0 then
 			Text("Try collecting \nsome water \nfrom the buckets",140,13,15,1,false)
 		end
 		if water > 0 and watered_plants == 0 then
@@ -493,10 +506,22 @@ function TIC()
 			spr(488,2,118,0,1,0,0,3,2)
 		end
 	end
+	if current_level == 1 then
+		if watered_plants == 1 then
+			Text(" How will we water \n the other one?",140,13,15,1,false)
+		end
+	end
 	Text(
-		current_level == 0 and "Plant Pusher" or (current_level == num_levels and "The End.\n\n\n Thanks\nfor playing :)" or "Level    "..current_level), -- background text
-		39,
-		50+((scale-(platform == "mobile" and 12 or 4))*22),
+		current_level == 0 and
+			"PLANT PUSH"
+			or
+			(current_level == num_levels and
+				"The End.\n\n\n Thanks\nfor playing :)"
+				or 
+				"Level   "..current_level
+			), -- background text
+		35,
+		50+((camera_zoom-(platform == "mobile" and 12 or 4))*22),
 		15,2,true
 	)
 	renderVoxelScene()
@@ -504,7 +529,7 @@ function TIC()
 	dwater = lerp(dwater,water,0.2)
 	Progressbar(230-40,2,40,dwatered_plants/plants, watered_plants == plants and 14 or 11)
 	Progressbar(230-40,12,40,dwater/max_water,9)
-	-- FPS()
+	if show_FPS then FPS() end
 	t=t+1
 end
 
@@ -530,14 +555,14 @@ function update_cam()
 	end
 
 	tcamera_incline = clamp(tcamera_incline - (move[2] * delta_time * 0.1),0,math.pi/2)
-	tcamera_angle = (tcamera_angle - (move[1] * delta_time * 0.15)) % (math.pi*2)
+	tcamera_angle = (tcamera_angle - (move[1] * delta_time * 0.2)) % (math.pi*2)
 	if platform == "desktop" then
-		tscale = clamp(tscale+zoom,4,16)
+		tcamera_zoom = clamp(tcamera_zoom+zoom,4,16)
 	elseif platform == "mobile" then
-		tscale = clamp(tscale+zoom,8,24)
+		tcamera_zoom = clamp(tcamera_zoom+zoom,8,24)
 	end
 
-	scale = lerp(scale,tscale,delta_time*4)
+	camera_zoom = lerp(camera_zoom,tcamera_zoom,delta_time*4)
 	camera_angle = lerp_angle(camera_angle,tcamera_angle,delta_time*4)
 	camera_incline = lerp_angle(camera_incline,tcamera_incline,delta_time*4)
 
@@ -554,30 +579,30 @@ end
 			local tile_offset=layer_map_separation*layer
 			local tex_offset=8*tile_offset
 
-			x1=-layer_width*scale/2
-			x2=layer_width*scale/2
-			y1=-layer_height*scale/2
-			y2=layer_height*scale/2
-			z1=(layer+1-num_layers/2)*scale
-			z2=(layer-num_layers/2)*scale
+			x1=-layer_width*camera_zoom/2
+			x2=layer_width*camera_zoom/2
+			y1=-layer_height*camera_zoom/2
+			y2=layer_height*camera_zoom/2
+			z1=(layer+1-num_layers/2)*camera_zoom
+			z2=(layer-num_layers/2)*camera_zoom
 			if cc>0 then
 				for ly=0,layer_height-1 do
 					setTexturesToFace(tile_offset,ly,layer_width,0,2)
 					if ss>0 then
 						for lx=0,layer_width-1 do
 							if mget(tile_offset+lx,ly)>0 then
-								wallQuad(x1+scale*(1+lx),y1+scale*(ly),z1,x1+scale*(1+lx),y1+scale*(1+ly),z2,8*lx+7.99+tex_offset,8*ly,8*lx+tex_offset,8*ly+7.99)
+								wallQuad(x1+camera_zoom*(1+lx),y1+camera_zoom*(ly),z1,x1+camera_zoom*(1+lx),y1+camera_zoom*(1+ly),z2,8*lx+7.99+tex_offset,8*ly,8*lx+tex_offset,8*ly+7.99)
 							end
 						end
 					else
 						for lx=layer_width-1,0,-1 do
 							if mget(tile_offset+lx,ly)>0 then
-								wallQuad(x1+scale*(lx),y1+scale*(1+ly),z1,x1+scale*(lx),y1+scale*(ly),z2,8*lx+tex_offset,8*ly,8*lx+7.99+tex_offset,8*ly+7.99)
+								wallQuad(x1+camera_zoom*(lx),y1+camera_zoom*(1+ly),z1,x1+camera_zoom*(lx),y1+camera_zoom*(ly),z2,8*lx+tex_offset,8*ly,8*lx+7.99+tex_offset,8*ly+7.99)
 							end
 						end
 					end
 					setTexturesToFace(tile_offset,ly,layer_width,0,1)
-					wallQuad(x1,y1+scale*(ly+1),z1,x2,y1+scale*(ly+1),z2,tex_offset,8*ly,8*layer_width+tex_offset,8*ly+7.99)
+					wallQuad(x1,y1+camera_zoom*(ly+1),z1,x2,y1+camera_zoom*(ly+1),z2,tex_offset,8*ly,8*layer_width+tex_offset,8*ly+7.99)
 				end
 			else
 				for ly=layer_height-1,0,-1 do
@@ -585,18 +610,18 @@ end
 					if ss>0 then
 						for lx=0,layer_width-1 do
 							if mget(tile_offset+lx,ly)>0 then
-								wallQuad(x1+scale*(1+lx),y1+scale*(ly),z1,x1+scale*(1+lx),y1+scale*(1+ly),z2,8*lx+7.99+tex_offset,8*ly,8*lx+tex_offset,8*ly+7.99)
+								wallQuad(x1+camera_zoom*(1+lx),y1+camera_zoom*(ly),z1,x1+camera_zoom*(1+lx),y1+camera_zoom*(1+ly),z2,8*lx+7.99+tex_offset,8*ly,8*lx+tex_offset,8*ly+7.99)
 							end
 						end
 					else
 						for lx=layer_width-1,0,-1 do
 							if mget(tile_offset+lx,ly)>0 then
-								wallQuad(x1+scale*(lx),y1+scale*(1+ly),z1,x1+scale*(lx),y1+scale*(ly),z2,8*lx+tex_offset,8*ly,8*lx+7.99+tex_offset,8*ly+7.99)
+								wallQuad(x1+camera_zoom*(lx),y1+camera_zoom*(1+ly),z1,x1+camera_zoom*(lx),y1+camera_zoom*(ly),z2,8*lx+tex_offset,8*ly,8*lx+7.99+tex_offset,8*ly+7.99)
 							end
 						end
 					end
 					setTexturesToFace(tile_offset,ly,layer_width,0,1)
-					wallQuad(x2,y1+scale*(ly),z1,x1,y1+scale*(ly),z2,8*layer_width+tex_offset,8*ly,tex_offset,8*ly+7.99)
+					wallQuad(x2,y1+camera_zoom*(ly),z1,x1,y1+camera_zoom*(ly),z2,8*layer_width+tex_offset,8*ly,tex_offset,8*ly+7.99)
 				end
 			end
 
