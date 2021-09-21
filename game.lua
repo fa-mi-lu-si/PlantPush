@@ -488,6 +488,31 @@ function TIC()
 	poke(0x03FF8,transparency)
 	if current_level == 0 then -- tutorial graphics
 
+		if input_mode == "gamepad" then
+
+			local temp_text = "camera"
+			spr(btn(7) and 287 or 271,28,128,0,1,0,0,1,1)
+	
+			if btn(7) then
+				if btn(4) then
+					spr(284,43,128,0)
+					temp_text = "zoom"
+				elseif btn(5) then
+					spr(285,43,128,0)
+					temp_text = "zoom"
+				else
+					for i = 0 , 3 do
+						if btn(i) then
+							spr(316 + i ,43,128,0)
+							temp_text = "move"
+						end
+					end
+				end
+			end
+			if temp_text == "camera" then spr(335,43,128,0) end
+			Text("  +  =camera",28,128,15,1,false)
+		end
+
 		if water == 0 and camera_zoom > 7 and watered_plants == 0 then
 			Text("Try collecting \nsome water \nfrom the buckets",140,13,15,1,false)
 		end
@@ -506,11 +531,13 @@ function TIC()
 			spr(488,2,118,0,1,0,0,3,2)
 		end
 	end
+
 	if current_level == 1 then
 		if watered_plants == 1 then
 			Text(" How will we water \n the other one?",140,13,15,1,false)
 		end
 	end
+
 	Text(
 		current_level == 0 and
 			"PLANT PUSH"
@@ -562,7 +589,7 @@ function update_cam()
 		tcamera_zoom = clamp(tcamera_zoom+zoom,8,24)
 	end
 
-	camera_zoom = lerp(camera_zoom,tcamera_zoom,delta_time*4)
+	camera_zoom = lerp(camera_zoom,tcamera_zoom,delta_time*3)
 	camera_angle = lerp_angle(camera_angle,tcamera_angle,delta_time*4)
 	camera_incline = lerp_angle(camera_incline,tcamera_incline,delta_time*4)
 
