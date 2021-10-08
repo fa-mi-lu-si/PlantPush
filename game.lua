@@ -40,14 +40,14 @@ start_level = 0
 -- game variables
 	local t=0
 	start_time=time()
-	num_levels = 10
+	num_levels = 13
 	current_level = 0
 	plants = 0 -- number of plants in the level
 	portal_pos = nil
 	watered_plants = 0
 	water = 0
 	max_water = 1
-	replce = {0,0} -- replace the first tile with the second
+	replace = {0,0} -- replace the first tile with the second
 
 	-- used for smooth ui animations
 	dwatered_plants = 0
@@ -73,6 +73,7 @@ start_level = 0
 			end
 
 			set_tile({x=pos.x,y=pos.y,z=pos.z+1},128)
+			sfx(4)
 			set_tile(pos,143)
 			watered_plants = watered_plants + 1
 			water = water-1
@@ -114,6 +115,7 @@ start_level = 0
 
 	push_tile = function (pos,direction)
 
+		self = get_tile(pos)
 		local target_pos = {
 			x = pos.x+direction.x,
 			y = pos.y+direction.y,
@@ -127,6 +129,9 @@ start_level = 0
 		local target_tile = get_tile(target_pos)
 
 		if target_tile == 129 then -- fall into water
+			if self == 79 or self == 15 or self == 135 then
+				set_level(current_level)
+			end
 			set_tile(pos,0)
 			return
 		end
@@ -415,9 +420,11 @@ player = {
 
 function TIC()
 	np=time() et=np-lp lp=np -- part of FPS debug
-
 	delta_time=(time()-start_time)*0.001
 	start_time=time()
+
+	-- update game
+	player:update()
 
 	if current_level == 0 then -- tutorial level
 		if input_mode == "" and t > 20 then
@@ -442,14 +449,11 @@ function TIC()
 		end
 	end
 
-	-- update game
 	update_cam()
 	if btnp(5) and not btn(7) then
 		set_level(current_level+1 > num_levels and 1 or current_level+1)
 	end
 	if input("Restart") and current_level~=0 then set_level(current_level) end
-	
-	player:update()
 
 	if water >= max_water then replace = {136,14} else replace = {14,136} end
 
@@ -486,9 +490,24 @@ function TIC()
 	--render game
 	cls(transparency)
 	poke(0x03FF8,transparency)
-	if current_level == 0 then -- tutorial graphics
+	Text( -- background text
+		current_level == 0 and
+			"PLANT PUSH"
+			or
+			(current_level == num_levels and
+				"The End.\n\n\n Thanks\nfor playing :)"
+				or 
+				"Level    "..current_level
+			),
+		35,
+		50+((camera_zoom-(platform == "mobile" and 12 or 4))*22),
+		15,2,true
+	)
+	renderVoxelScene()
+	-- tutorial graphics
+	if current_level == 0 then
 
-		if input_mode == "gamepad" then
+		if input_mode == "gamepad" and watered_plants == 0 then
 
 			local temp_text = "camera"
 			spr(btn(7) and 287 or 271,28,128,0,1,0,0,1,1)
@@ -517,7 +536,7 @@ function TIC()
 			Text("Try collecting \nsome water \nfrom the buckets",140,13,15,1,false)
 		end
 		if water > 0 and watered_plants == 0 then
-			Text("Water ->\n is used\n to grow plants",140,13,15,1,false)
+			Text("  Water->\n is used\n to grow plants",140,13,15,1,false)
 		end
 		if watered_plants > 0 then
 			Text(watered_plants == plants and "All plants watered ! ->" or watered_plants.." plant"..(watered_plants > 1 and "s" or "") .." watered ->",80,2,15,1,false)
@@ -531,27 +550,20 @@ function TIC()
 			spr(488,2,118,0,1,0,0,3,2)
 		end
 	end
-
 	if current_level == 1 then
+		if watered_plants == 0 then
+			Text("If you get stuck \nJust press",8,113,15,1,false)
+			if input_mode == "gamepad" then
+				spr(btn(6) and 286 or 270,62,119,0)
+			else
+				spr(key(18) and 382 or 414,60,119,0,1,0,0,2,2)
+				Text("R",64,122 + (key(18) and 2 or 0),2,1,false)
+			end
+		end
 		if watered_plants == 1 then
 			Text(" How will we water \n the other one?",140,13,15,1,false)
 		end
-	end
-
-	Text(
-		current_level == 0 and
-			"PLANT PUSH"
-			or
-			(current_level == num_levels and
-				"The End.\n\n\n Thanks\nfor playing :)"
-				or 
-				"Level   "..current_level
-			), -- background text
-		35,
-		50+((camera_zoom-(platform == "mobile" and 12 or 4))*22),
-		15,2,true
-	)
-	renderVoxelScene()
+	end	
 	dwatered_plants = math.min(lerp(dwatered_plants,watered_plants,0.2),plants)
 	dwater = lerp(dwater,water,0.2)
 	Progressbar(230-40,2,40,dwatered_plants/plants, watered_plants == plants and 14 or 11)
