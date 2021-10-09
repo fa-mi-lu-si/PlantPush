@@ -466,10 +466,6 @@ function TIC()
 
 				if tile == replace[1] then set_tile(pos,replace[2]) end
 
-				if fget(tile,6) then -- flags 6 (dark blue) means that a block can be affected by gravity
-					push_tile(pos,{x=0,y=0,z=-1})
-				end
-
 				if tile == 14 or tile == 136 then -- for every bucket
 					local tile_above = get_tile({x=x,y=y,z=z+1})
 					if tile_above == 79 or tile_above == 15 or tile_above == 135 then --if a plant pot is over a bucket
@@ -483,6 +479,11 @@ function TIC()
 						end
 					end
 				end
+				
+				if fget(tile,6) then -- flags 6 (dark blue) means that a block can be affected by gravity
+					push_tile(pos,{x=0,y=0,z=-1})
+				end
+				
 			end
 		end
 	end
@@ -529,7 +530,7 @@ function TIC()
 				end
 			end
 			if temp_text == "camera" then spr(335,43,128,0) end
-			Text("  +  =camera",28,128,15,1,false)
+			Text("  +   = camera",28,128,15,1,false)
 		end
 
 		if water == 0 and camera_zoom > 7 and watered_plants == 0 then
@@ -543,11 +544,11 @@ function TIC()
 		end
 
 		if platform == "mobile" then
-			spr(484,2,118,0,1,0,0,2,2)
+			spr(484,2,118,13,1,0,0,2,2)
 		elseif input_mode == "gamepad" then
-			spr(486,2,118,0,1,0,0,2,2)
+			spr(486,2,118,13,1,0,0,2,2)
 		elseif input_mode == "keyboard" then
-			spr(488,2,118,0,1,0,0,3,2)
+			spr(488,2,118,13,1,0,0,3,2)
 		end
 	end
 	if current_level == 1 then
@@ -556,8 +557,8 @@ function TIC()
 			if input_mode == "gamepad" then
 				spr(btn(6) and 286 or 270,62,119,0)
 			else
-				spr(key(18) and 382 or 414,60,119,0,1,0,0,2,2)
-				Text("R",64,122 + (key(18) and 2 or 0),2,1,false)
+				spr(key(18) and 382 or 414,60,119,13,1,0,0,2,2)
+				Text("R",65,122 + (key(18) and 2 or 0),2,1,false)
 			end
 		end
 		if watered_plants == 1 then
@@ -566,8 +567,11 @@ function TIC()
 	end	
 	dwatered_plants = math.min(lerp(dwatered_plants,watered_plants,0.2),plants)
 	dwater = lerp(dwater,water,0.2)
-	Progressbar(230-40,2,40,dwatered_plants/plants, watered_plants == plants and 14 or 11)
-	Progressbar(230-40,12,40,dwater/max_water,9)
+	Progressbar(190,2,40,dwatered_plants/plants, watered_plants == plants and 14 or 11)
+	-- for i =1,watered_plants do
+	-- 	spr(143,200-(i*10),4)
+	-- end
+	Progressbar(190,12,40,dwater/max_water,9)
 	if show_FPS then FPS() end
 	t=t+1
 end
