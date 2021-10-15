@@ -40,7 +40,7 @@ start_level = 0
 -- game variables
 	local t=0
 	start_time=time()
-	num_levels = 13
+	num_levels = 15
 	current_level = 0
 	plants = 0 -- number of plants in the level
 	portal_pos = nil
@@ -408,6 +408,7 @@ player = {
 
 -- initialise the game
 	set_level(start_level)
+	camera_angle=math.pi*1.5
 	if start_level~=0 then
 		tcamera_zoom = 10
 		camera_zoom = tcamera_zoom
@@ -427,8 +428,7 @@ function TIC()
 	player:update()
 
 	if current_level == 0 then -- tutorial level
-		if input_mode == "" and t > 20 then
-			tcamera_angle = camera_angle+0.3
+		if input_mode == "" and tcamera_zoom-camera_zoom < 0.7 then
 			if keyp() then
 				input_mode = "keyboard"
 				platform = "desktop"
@@ -540,7 +540,7 @@ function TIC()
 			Text("  Water->\n is used\n to grow plants",140,13,15,1,false)
 		end
 		if watered_plants > 0 then
-			Text(watered_plants == plants and "All plants watered ! ->" or watered_plants.." plant"..(watered_plants > 1 and "s" or "") .." watered ->",80,2,15,1,false)
+			Text(watered_plants == plants and "All plants watered!  ->" or watered_plants.." plant"..(watered_plants > 1 and "s" or "") .." watered ->",80,2,15,1,false)
 		end
 
 		if platform == "mobile" then
@@ -564,7 +564,8 @@ function TIC()
 		if watered_plants == 1 then
 			Text(" How will we water \n the other one?",140,13,15,1,false)
 		end
-	end	
+	end
+
 	dwatered_plants = math.min(lerp(dwatered_plants,watered_plants,0.2),plants)
 	dwater = lerp(dwater,water,0.2)
 	Progressbar(190,2,40,dwatered_plants/plants, watered_plants == plants and 14 or 11)
@@ -575,7 +576,6 @@ function TIC()
 	if show_FPS then FPS() end
 	t=t+1
 end
-
 
 function update_cam()
 	poke(0x7FC3F,1,1) -- mouse capture
@@ -605,9 +605,16 @@ function update_cam()
 		tcamera_zoom = clamp(tcamera_zoom+zoom,8,24)
 	end
 
-	camera_zoom = lerp(camera_zoom,tcamera_zoom,delta_time*3)
-	camera_angle = lerp_angle(camera_angle,tcamera_angle,delta_time*4)
-	camera_incline = lerp_angle(camera_incline,tcamera_incline,delta_time*4)
+	if input_mode == "" then
+		tcamera_angle = camera_angle+0.3
+		camera_zoom = lerp(camera_zoom,tcamera_zoom,delta_time*2)
+		camera_angle = lerp_angle(camera_angle,tcamera_angle,delta_time*4)
+		camera_incline = lerp_angle(camera_incline,tcamera_incline,delta_time*2)
+	else
+		camera_zoom = lerp(camera_zoom,tcamera_zoom,delta_time*3)
+		camera_angle = lerp_angle(camera_angle,tcamera_angle,delta_time*4)
+		camera_incline = lerp_angle(camera_incline,tcamera_incline,delta_time*3)
+	end
 
 	cc=math.cos(camera_angle)
 	ss=math.sin(camera_angle)
