@@ -105,6 +105,18 @@ start_level = 0
 		name = "bucket",
 		run = tiles[14].run
 	}
+	tiles[198] = {
+		name = "empty_bucket",
+		run = function(pos,dir)
+			if water < 1 then return end
+			water = water-1
+			set_tile(pos,14)
+		end
+	}
+	tiles[197] = {
+		name = "empty_bucket_pushable",
+		run = tiles[198].run
+	}
 	tiles[77] = {
 		name = "portal",
 		run = function(pos,dir)
