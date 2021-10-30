@@ -40,14 +40,18 @@ start_level = 0
 -- game variables
 	local t=0
 	start_time=time()
+
 	num_levels = 15
 	current_level = 0
+	level_trans = false -- used for the level transition animation
+	restart = false
+
 	plants = 0 -- number of plants in the level
-	portal_pos = nil
 	watered_plants = 0
 	water = 0
 	max_water = 1
 	replace = {0,0} -- replace the first tile with the second
+	portal_pos = nil
 
 	-- used for smooth ui animations
 	dwatered_plants = 0
@@ -120,8 +124,12 @@ start_level = 0
 	tiles[77] = {
 		name = "portal",
 		run = function(pos,dir)
-			if current_level == num_levels then return end
-			set_level(current_level+1)
+			if current_level == num_levels or watered_plants < plants then return end
+			level_trans = true
+
+			tcamera_zoom = 0
+			tcamera_incline=math.pi/6
+			tcamera_angle=0
 		end
 	}
 
@@ -142,7 +150,12 @@ start_level = 0
 
 		if target_tile == 129 then -- fall into water
 			if self == 79 or self == 15 or self == 135 then
-				set_level(current_level)
+				level_trans = true
+				restart = true
+
+				tcamera_zoom = -4
+				tcamera_incline=math.pi/6
+				tcamera_angle=0
 			end
 			set_tile(pos,0)
 			return
@@ -184,13 +197,6 @@ start_level = 0
 -- level data
 
 	function set_level(level)
-
-		-- reset the camera
-		camera_angle=math.pi
-		tcamera_angle=math.pi*1.75
-		camera_incline=0
-		tcamera_incline=math.pi*0.3
-		camera_zoom=0
 
 		-- reset the game
 		watered_plants = 0
@@ -351,7 +357,15 @@ player = {
 		else
 			if not self.jumping then
 				self.jump_allowed = false
-				if self.pos.z==0 then set_level(current_level) return end
+				if self.pos.z==0 then 
+					level_trans = true
+					restart = true
+
+					tcamera_zoom = -4
+					tcamera_incline=math.pi/6
+					tcamera_angle=0
+					return
+				end
 				dp.z = -1
 			end
 		end
@@ -392,7 +406,15 @@ player = {
 		local target_tile = get_tile(target_pos)
 
 		-- fall into water
-		if target_tile == 129 then set_level(current_level) return end
+		if target_tile == 129 then
+			level_trans = true
+			restart = true
+
+			tcamera_zoom = -4
+			tcamera_incline=math.pi/6
+			tcamera_angle=0
+			return
+		end
 
 		if fget(target_tile,2) then -- pushable tiles have flag 2 yellow
 			push_tile(target_pos,dp)
@@ -437,6 +459,34 @@ function TIC()
 	start_time=time()
 
 	-- update game
+	if input("Restart") and current_level~=0 then
+		level_trans = true
+		restart = true
+
+		tcamera_zoom = -4
+		tcamera_incline=math.pi/6
+		tcamera_angle=0
+	end
+
+	if level_trans then
+		if camera_zoom < (restart and 0.25 or 0.1) then
+
+			if restart then
+				set_level(current_level)
+				restart = false
+			else
+				set_level(current_level+1)
+			end
+
+			-- set camera variables
+			tcamera_angle=math.pi*1.75
+			tcamera_incline=math.pi*0.3
+			tcamera_zoom=8
+
+			level_trans = false
+		end
+	end
+
 	player:update()
 
 	if current_level == 0 then -- tutorial level
@@ -465,7 +515,6 @@ function TIC()
 	if btnp(5) and not btn(7) then
 		set_level(current_level+1 > num_levels and 1 or current_level+1)
 	end
-	if input("Restart") and current_level~=0 then set_level(current_level) end
 
 	if water >= max_water then replace = {136,14} else replace = {14,136} end
 
@@ -611,10 +660,12 @@ function update_cam()
 
 	tcamera_incline = clamp(tcamera_incline - (move[2] * delta_time * 0.1),0,math.pi/2)
 	tcamera_angle = (tcamera_angle - (move[1] * delta_time * 0.2)) % (math.pi*2)
-	if platform == "desktop" then
-		tcamera_zoom = clamp(tcamera_zoom+zoom,4,16)
-	elseif platform == "mobile" then
-		tcamera_zoom = clamp(tcamera_zoom+zoom,8,24)
+	if not level_trans then
+		if platform == "desktop" then
+			tcamera_zoom = clamp(tcamera_zoom+zoom,4,16)
+		elseif platform == "mobile" then
+			tcamera_zoom = clamp(tcamera_zoom+zoom,8,24)
+		end
 	end
 
 	if input_mode == "" then
@@ -623,7 +674,7 @@ function update_cam()
 		camera_angle = lerp_angle(camera_angle,tcamera_angle,delta_time*4)
 		camera_incline = lerp_angle(camera_incline,tcamera_incline,delta_time*2)
 	else
-		camera_zoom = lerp(camera_zoom,tcamera_zoom,delta_time*3)
+		camera_zoom = lerp(camera_zoom,tcamera_zoom,delta_time*2.5)
 		camera_angle = lerp_angle(camera_angle,tcamera_angle,delta_time*4)
 		camera_incline = lerp_angle(camera_incline,tcamera_incline,delta_time*3)
 	end
