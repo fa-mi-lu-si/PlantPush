@@ -30,6 +30,7 @@ start_level = 0
 -- math
 	function clamp(n,low,high)return math.min(math.max(n,low),high)end
 	function lerp(a,b,t) return (1-t)*a + t*b end
+	function frnd(max) return math.random()*max end
 	function rotate(point,angle)return{x=(point.x*math.cos(angle)-point.y*math.sin(angle)),y=(point.y*math.cos(angle)+point.x*math.sin(angle))}end
 	function lerp_angle(a, b, t)
 		local a_vec = rotate({x=0,y=-1},a) b_vec = rotate({x=0,y=-1},b)
@@ -127,7 +128,7 @@ start_level = 0
 			if current_level == num_levels or watered_plants < plants then return end
 			level_trans = true
 
-			tcamera_zoom = 0
+			tcamera_zoom = -2
 			tcamera_incline=math.pi/6
 			tcamera_angle=0
 		end
@@ -136,16 +137,24 @@ start_level = 0
 	push_tile = function (pos,direction)
 
 		self = get_tile(pos)
+		
+		if self == 78 and direction.z == 1 then return end
+		if self == 195 and (direction.x ~= 0 or direction.z == 1) then return end
+		if self == 196 and (direction.y ~= 0 or direction.z == 1) then return end
+
 		local target_pos = {
 			x = pos.x+direction.x,
 			y = pos.y+direction.y,
 			z = pos.z+direction.z
 		}
+
 		if -- if the target position is out of the level
 			target_pos.x < 0 or target_pos.x > layer_width-1
 			or target_pos.y < 0 or target_pos.y > layer_height-1
 			or target_pos.z < 0 or target_pos.z > num_layers-1
-		then return end
+		then return
+		end
+
 		local target_tile = get_tile(target_pos)
 
 		if target_tile == 129 then -- fall into water
@@ -463,11 +472,18 @@ function TIC()
 		level_trans = true
 		restart = true
 
-		tcamera_zoom = -4
+		tcamera_zoom = -5
 		tcamera_incline=math.pi/6
 		tcamera_angle=0
 	end
+	if btnp(5) and not btn(7) then
+		level_trans = true
+		restart = false
 
+		tcamera_zoom = -5
+		tcamera_incline=math.pi/6
+		tcamera_angle=0
+	end
 	if level_trans then
 		if camera_zoom < (restart and 0.25 or 0.1) then
 
@@ -475,7 +491,8 @@ function TIC()
 				set_level(current_level)
 				restart = false
 			else
-				set_level(current_level+1)
+				set_level(current_level+1 > num_levels and 1 or current_level+1)
+				sparks(240/2,136*(4/7))
 			end
 
 			-- set camera variables
@@ -512,9 +529,7 @@ function TIC()
 	end
 
 	update_cam()
-	if btnp(5) and not btn(7) then
-		set_level(current_level+1 > num_levels and 1 or current_level+1)
-	end
+	update_psystems()
 
 	if water >= max_water then replace = {136,14} else replace = {14,136} end
 
@@ -552,19 +567,25 @@ function TIC()
 	--render game
 	cls(transparency)
 	poke(0x03FF8,transparency)
-	Text( -- background text
-		current_level == 0 and
-			"PLANT PUSH"
-			or
-			(current_level == num_levels and
-				"The End.\n\n\n Thanks\nfor playing :)"
-				or 
-				"Level    "..current_level
-			),
-		35,
-		50+((camera_zoom-(platform == "mobile" and 12 or 4))*22),
-		15,2,true
-	)
+	if not level_trans then
+		Text( -- background text
+			current_level == 0 and
+				"PLANT PUSH"
+				or
+				(current_level == num_levels and
+					"The End.\n\n\n Thanks\nfor playing :)"
+					or 
+					"Level    "..current_level
+				),
+			35,
+			50+((camera_zoom-(platform == "mobile" and 12 or 4))*22),
+			15,2,true
+		)
+	end
+	draw_psystems()
+	if #particle_systems > 0 then
+		rect(110,75,20,10,transparency)
+	end
 	renderVoxelScene()
 	-- tutorial graphics
 	if current_level == 0 then
@@ -703,15 +724,11 @@ end
 					setTexturesToFace(tile_offset,ly,layer_width,0,2)
 					if ss>0 then
 						for lx=0,layer_width-1 do
-							if mget(tile_offset+lx,ly)>0 then
-								wallQuad(x1+camera_zoom*(1+lx),y1+camera_zoom*(ly),z1,x1+camera_zoom*(1+lx),y1+camera_zoom*(1+ly),z2,8*lx+7.99+tex_offset,8*ly,8*lx+tex_offset,8*ly+7.99)
-							end
+							wallQuad(x1+camera_zoom*(1+lx),y1+camera_zoom*(ly),z1,x1+camera_zoom*(1+lx),y1+camera_zoom*(1+ly),z2,8*lx+7.99+tex_offset,8*ly,8*lx+tex_offset,8*ly+7.99)
 						end
 					else
 						for lx=layer_width-1,0,-1 do
-							if mget(tile_offset+lx,ly)>0 then
-								wallQuad(x1+camera_zoom*(lx),y1+camera_zoom*(1+ly),z1,x1+camera_zoom*(lx),y1+camera_zoom*(ly),z2,8*lx+tex_offset,8*ly,8*lx+7.99+tex_offset,8*ly+7.99)
-							end
+							wallQuad(x1+camera_zoom*(lx),y1+camera_zoom*(1+ly),z1,x1+camera_zoom*(lx),y1+camera_zoom*(ly),z2,8*lx+tex_offset,8*ly,8*lx+7.99+tex_offset,8*ly+7.99)
 						end
 					end
 					setTexturesToFace(tile_offset,ly,layer_width,0,1)
@@ -722,15 +739,11 @@ end
 					setTexturesToFace(tile_offset,ly,layer_width,0,2)
 					if ss>0 then
 						for lx=0,layer_width-1 do
-							if mget(tile_offset+lx,ly)>0 then
-								wallQuad(x1+camera_zoom*(1+lx),y1+camera_zoom*(ly),z1,x1+camera_zoom*(1+lx),y1+camera_zoom*(1+ly),z2,8*lx+7.99+tex_offset,8*ly,8*lx+tex_offset,8*ly+7.99)
-							end
+							wallQuad(x1+camera_zoom*(1+lx),y1+camera_zoom*(ly),z1,x1+camera_zoom*(1+lx),y1+camera_zoom*(1+ly),z2,8*lx+7.99+tex_offset,8*ly,8*lx+tex_offset,8*ly+7.99)
 						end
 					else
 						for lx=layer_width-1,0,-1 do
-							if mget(tile_offset+lx,ly)>0 then
-								wallQuad(x1+camera_zoom*(lx),y1+camera_zoom*(1+ly),z1,x1+camera_zoom*(lx),y1+camera_zoom*(ly),z2,8*lx+tex_offset,8*ly,8*lx+7.99+tex_offset,8*ly+7.99)
-							end
+							wallQuad(x1+camera_zoom*(lx),y1+camera_zoom*(1+ly),z1,x1+camera_zoom*(lx),y1+camera_zoom*(ly),z2,8*lx+tex_offset,8*ly,8*lx+7.99+tex_offset,8*ly+7.99)
 						end
 					end
 					setTexturesToFace(tile_offset,ly,layer_width,0,1)
@@ -760,4 +773,180 @@ end
 				mset(i,j,tile-(tile%64)+tile%16+16*faceID)
 			end
 		end
+	end
+
+-- PARTICLE SYSTEMS
+	particle_systems = {}
+	function make_psystem(minlife, maxlife, minstartsize, maxstartsize, minendsize, maxendsize)
+		local ps = {
+		-- global particle system params
+	
+		-- if true, automatically deletes the particle system if all of it's particles died
+		autoremove = true,
+	
+		minlife = minlife,
+		maxlife = maxlife,
+	
+		minstartsize = minstartsize,
+		maxstartsize = maxstartsize,
+		minendsize = minendsize,
+		maxendsize = maxendsize,
+	
+		-- container for the particles
+		particles = {},
+	
+		-- emittimers dictate when a particle should start
+		-- they called every frame, and call emit_particle when they see fit
+		-- they should return false if no longer need to be updated
+		emittimers = {},
+	
+		-- emitters must initialize p.x, p.y, p.vx, p.vy
+		emitters = {},
+	
+		-- every ps needs a drawfunc
+		drawfuncs = {},
+	
+		-- affectors affect the movement of the particles
+		affectors = {},
+		}
+	
+		table.insert(particle_systems, ps)
+	
+		return ps
+	end
+	function update_psystems()
+		local timenow = time()
+		for key,ps in pairs(particle_systems) do
+			update_ps(ps, timenow)
+		end
+	end
+	function update_ps(ps, timenow)
+		for key,et in pairs(ps.emittimers) do
+			local keep = et.timerfunc(ps, et.params)
+			if (keep==false) then
+				table.remove(ps.emittimers, key)
+			end
+		end
+	
+		for key,p in pairs(ps.particles) do
+			p.phase = (timenow-p.starttime)/(p.deathtime-p.starttime)
+	
+			for key,a in pairs(ps.affectors) do
+				a.affectfunc(p, a.params)
+			end
+	
+			p.x = p.x + p.vx
+			p.y = p.y + p.vy
+	
+			local dead = false
+			if (p.x<0 or p.x>240 or p.y<0 or p.y>136) then
+				dead = true
+			end
+	
+			if (timenow>=p.deathtime) then
+				dead = true
+			end
+	
+			if (dead==true) then
+				table.remove(ps.particles, key)
+			end
+		end
+	
+		if (ps.autoremove==true and #ps.particles<=0) then
+			local psidx = -1
+			for pskey,pps in pairs(particle_systems) do
+				if pps==ps then
+					table.remove(particle_systems, pskey)
+					return
+				end
+			end
+		end
+	end
+	function draw_psystems()
+		for key,ps in pairs(particle_systems) do
+			draw_ps(ps)
+		end
+	end
+	function draw_ps(ps, params)
+		for key,df in pairs(ps.drawfuncs) do
+			df.drawfunc(ps, df.params)
+		end
+	end
+	function deleteallps()
+		for key,ps in pairs(particle_systems) do
+			particle_systems[key] = nil
+		end
+	end
+	function emit_particle(psystem)
+		local p = {}
+	
+		local ecount = nil
+		local e = psystem.emitters[math.random(#psystem.emitters)]
+		e.emitfunc(p, e.params)
+	
+		p.phase = 0
+		p.starttime = time()
+		p.deathtime = time()+frnd(psystem.maxlife-psystem.minlife)+psystem.minlife
+	
+		p.startsize = frnd(psystem.maxstartsize-psystem.minstartsize)+psystem.minstartsize
+		p.endsize = frnd(psystem.maxendsize-psystem.minendsize)+psystem.minendsize
+	
+		table.insert(psystem.particles, p)
+	end
+
+	-- modules
+		function emittimer_burst(ps, params)
+			for i=1,params.num do
+				emit_particle(ps)
+			end
+			return false
+		end
+		
+		function emitter_point(p, params)
+			p.x = params.x
+			p.y = params.y
+		
+			p.vx = frnd(params.maxstartvx-params.minstartvx)+params.minstartvx
+			p.vy = frnd(params.maxstartvy-params.minstartvy)+params.minstartvy
+		end
+
+		function draw_ps_pix(ps, params)
+			for key,p in pairs(ps.particles) do
+				c = math.floor(p.phase*#params.colors)+1
+				pix(p.x,p.y,params.colors[c])
+			end
+		end
+
+		function draw_ps_streak(ps, params)
+			for key,p in pairs(ps.particles) do
+				c = math.floor(p.phase*#params.colors)+1
+				line(p.x,p.y,p.x-p.vx,p.y-p.vy,params.colors[c])
+			end
+		end
+
+	-- particles
+	function sparks(ex,ey)
+		local ps = make_psystem(1000,2000, 0,0, 0,0)
+	
+		table.insert(ps.emittimers,
+			{
+				timerfunc = emittimer_burst,
+				params = { num = 100 }
+			}
+		)
+		table.insert(ps.emitters,
+			{
+				emitfunc = emitter_point,
+				params = { x = ex, y = ey,
+					minstartvx = -3.4, maxstartvx = 3.4,
+					minstartvy = -2, maxstartvy = 2
+				}
+			}
+		)
+		table.insert(ps.drawfuncs,
+			{
+				drawfunc = draw_ps_pix,
+				params = { colors = {12,14,14,15,15,15} }
+			}
+		)
 	end
