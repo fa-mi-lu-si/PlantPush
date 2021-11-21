@@ -78,7 +78,6 @@ start_level = 0
 			end
 
 			set_tile({x=pos.x,y=pos.y,z=pos.z+1},128)
-			sfx(4)
 			set_tile(pos,143)
 			watered_plants = watered_plants + 1
 			water = water-1
@@ -358,14 +357,14 @@ player = {
 	update = function(self)
 
 		-- check for input
-		local dp = {x=0,y=0,z=0} -- the direction the player wants to move
+		local direction = {x=0,y=0,z=0} -- the direction the player wants to move
 
 		if fget(get_tile({x=self.pos.x,y=self.pos.y,z=self.pos.z-1}),0) then -- if the player is on solid ground
 			self.jump_allowed = true
 			self.jumping = false
 		else
+			self.jump_allowed = false
 			if not self.jumping then
-				self.jump_allowed = false
 				if self.pos.z==0 then 
 					level_trans = true
 					restart = true
@@ -375,14 +374,13 @@ player = {
 					tcamera_angle=0
 					return
 				end
-				dp.z = -1
+				direction.z = -1
 			end
 		end
 
 		if input("Jump") and self.jump_allowed then
-			dp.z = 1
+			direction.z = 1
 			self.jumping = true
-			self.jump_allowed = false
 		end
 
 		-- map keyboard buttons to directions based on camera rotation
@@ -392,13 +390,13 @@ player = {
 
 		local moved = true
 		if input(n) or input("a"..n) then
-			dp.y=-1
+			direction.y=-1
 		elseif input(s) or input("a"..s) then
-			dp.y=1
+			direction.y=1
 		elseif input(e) or input("a"..e) then
-			dp.x=-1
+			direction.x=-1
 		elseif input(w) or input("a"..w) then
-			dp.x=1
+			direction.x=1
 		else
 			moved = false
 		end
@@ -408,9 +406,9 @@ player = {
 		end
 
 		local target_pos = {
-			x = clamp(self.pos.x+dp.x,0,layer_width-1) ,
-			y = clamp(self.pos.y+dp.y,0,layer_height-1) ,
-			z = clamp(self.pos.z+dp.z,0,num_layers-1)
+			x = clamp(self.pos.x+direction.x,0,layer_width-1) ,
+			y = clamp(self.pos.y+direction.y,0,layer_height-1) ,
+			z = clamp(self.pos.z+direction.z,0,num_layers-1)
 		}
 		local target_tile = get_tile(target_pos)
 
@@ -426,12 +424,12 @@ player = {
 		end
 
 		if fget(target_tile,2) then -- pushable tiles have flag 2 yellow
-			push_tile(target_pos,dp)
+			push_tile(target_pos,direction)
 			target_tile = get_tile(target_pos) -- update the target_tile
 		end
 
 		if fget(target_tile, 1) then -- interactable tiles have flag 1 orange
-			tiles[target_tile].run(target_pos,dp)
+			tiles[target_tile].run(target_pos,direction)
 			target_tile = get_tile(target_pos) -- just in case it changed
 			if camera_zoom == 0 then target_pos = self.pos end
 		end
@@ -485,22 +483,35 @@ function TIC()
 		tcamera_angle=0
 	end
 	if level_trans then
-		if camera_zoom < (restart and 0.25 or 0.1) then
+		if camera_zoom < (restart and 0.7 or 0.1) then
 
-			if restart then
-				set_level(current_level)
-				restart = false
+			if 
+				restart
+			then
+				tcamera_zoom = 0.7
+				-- if not pressing the restart action
+				if not (input_mode == "gamepad" and (btnp(btns["Restart"]) and not btn(7) ) or key(kbd["Restart"])) then
+					set_level(current_level)
+					restart = false
+
+					-- set camera variables
+					tcamera_angle=math.pi*1.75
+					tcamera_incline=math.pi*0.3
+					tcamera_zoom=8
+
+					level_trans = false
+				end
 			else
 				set_level(current_level+1 > num_levels and 1 or current_level+1)
 				sparks(240/2,136*(4/7))
+
+				-- set camera variables
+				tcamera_angle=math.pi*1.75
+				tcamera_incline=math.pi*0.3
+				tcamera_zoom=8
+
+				level_trans = false
 			end
-
-			-- set camera variables
-			tcamera_angle=math.pi*1.75
-			tcamera_incline=math.pi*0.3
-			tcamera_zoom=8
-
-			level_trans = false
 		end
 	end
 
@@ -573,7 +584,7 @@ function TIC()
 				"PLANT PUSH"
 				or
 				(current_level == num_levels and
-					"The End.\n\n\n Thanks\nfor playing :)"
+					"Thanks\n\n\nfor playing :)"
 					or 
 					"Level    "..current_level
 				),
@@ -635,12 +646,12 @@ function TIC()
 	end
 	if current_level == 1 then
 		if watered_plants == 0 then
-			Text("If you get stuck \nJust press",8,113,15,1,false)
+			Text("If you get stuck \nJust tap",14,113,15,1,false)
 			if input_mode == "gamepad" then
-				spr(btn(6) and 286 or 270,62,119,0)
+				spr(btn(6) and 286 or 270,60,119,0)
 			else
-				spr(key(18) and 382 or 414,60,119,13,1,0,0,2,2)
-				Text("R",65,122 + (key(18) and 2 or 0),2,1,false)
+				spr(key(18) and 382 or 414,58,119,13,1,0,0,2,2)
+				Text("R",62,122 + (key(18) and 2 or 0),2,1,false)
 			end
 		end
 		if watered_plants == 1 then
