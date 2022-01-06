@@ -274,7 +274,7 @@ start_level = 0
 		rect(4,11,13,7,0)
 		print("et:",5,12)
 		rect(18,11,21,1,15)
-		rect(38,11,1,etg[20]/2+1,9)
+		rect(38,11,1,etg[20]/2+1,10)
 		for i=1,20 do
 		local c=11
 			if etg[i]>20 then c=7 end
@@ -283,7 +283,7 @@ start_level = 0
 		rect(17+i,12,1,etg[i]/2,c)
 		end
 		print(math.floor(1000/fps),19,13)
-		pix(37,etg[20]/2+11,9)
+		pix(37,etg[20]/2+11,10)
 	end
 
 -- graphics
@@ -490,7 +490,12 @@ function TIC()
 			then
 				tcamera_zoom = 0.7
 				-- if not pressing the restart action
-				if not (input_mode == "gamepad" and (btnp(btns["Restart"]) and not btn(7) ) or key(kbd["Restart"])) then
+				if not(
+					input_mode == "gamepad" and
+						(btn(btns["Restart"]) and not btn(7) )
+					or 
+						key(kbd["Restart"]))
+				then
 					set_level(current_level)
 					restart = false
 
@@ -508,7 +513,7 @@ function TIC()
 				-- set camera variables
 				tcamera_angle=math.pi*1.75
 				tcamera_incline=math.pi*0.3
-				tcamera_zoom=8
+				tcamera_zoom = current_level == 15 and 4 or 8
 
 				level_trans = false
 			end
@@ -665,7 +670,7 @@ function TIC()
 	-- for i =1,watered_plants do
 	-- 	spr(143,200-(i*10),4)
 	-- end
-	Progressbar(190,12,40,dwater/max_water,9)
+	Progressbar(190,12,40,dwater/max_water,10)
 	if show_FPS then FPS() end
 	t=t+1
 end
