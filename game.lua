@@ -1,7 +1,8 @@
--- title: The GARDEN
+-- title: Plant Push
 -- author: 51ftyone
 -- desc: help the garden, the garden helps you
 -- script: lua
+-- saveid: plantpush
 
 -- settings
 input_mode = ""
@@ -206,6 +207,10 @@ start_level = 0
 
 	function set_level(level)
 
+		if current_level == 0 and level == 1 and (pmem(1) ~= 0) then
+			level = pmem(1)
+		end
+
 		-- reset the game
 		watered_plants = 0
 		water = 0
@@ -251,6 +256,7 @@ start_level = 0
 
 		if level~=0 then
 			current_level = level
+			pmem(1,level)
 		end
 	end
 
@@ -651,12 +657,12 @@ function TIC()
 	end
 	if current_level == 1 then
 		if watered_plants == 0 then
-			Text("If you get stuck \nJust tap",14,113,15,1,false)
+			Text("If you're stuck \nJust tap",14,113,15,1,false)
 			if input_mode == "gamepad" then
 				spr(btn(6) and 286 or 270,60,119,0)
 			else
 				spr(key(18) and 382 or 414,58,119,13,1,0,0,2,2)
-				Text("R",62,122 + (key(18) and 2 or 0),2,1,false)
+				Text("R",62,122 + (key(18) and 2 or 0),6,1,false)
 			end
 		end
 		if watered_plants == 1 then
