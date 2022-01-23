@@ -297,22 +297,22 @@ start_level = 0
 		if(c0==nil and c1==nil)then for i=0,15 do poke4(0x3FF0*2+i,i)end
 		else poke4(0x3FF0*2+c0,c1)end
 	end
-	function Text(text,x,y,colour,camera_zoom,alt)
+	function Text(text,x,y,colour,scale,alt)
 		local keep = peek4(2*0x03FFC)
 		pal(1,colour or 15)
 		poke4(2*0x03FFC,8)
-		n = font(text,x,y,0,5,8,false,camera_zoom,alt)
+		n = font(text,x,y,0,5,8,false,scale,alt)
 		pal()
 		poke4(2*0x03FFC, keep)
 		return n
 	end
 	a={{0,-1},{-1,0},{0,1},{1,0},{-1,-1},{1,1},{1,-1},{-1,1}}
-	outlined_Text = function (text, x, y, color, outline_color, camera_zoom, alt, corners)
+	outlined_Text = function (text, x, y, color, outline_color, scale, alt, corners)
 		corners = corners or true
 		for i=1, corners and 8 or 4 do
-			Text(text,x+a[i][1],y+a[i][2],outline_color,camera_zoom,alt)
+			Text(text,x+a[i][1],y+a[i][2],outline_color,scale,alt)
 		end
-		Text(text,x,y,color,camera_zoom,alt)
+		Text(text,x,y,color,scale,alt)
 	end
 	function Progressbar(x,y,width,progress,colour)
 		rect(x,y,math.min(progress,1) * width,platform == "desktop" and 3 or 10,colour) -- progressbar
@@ -599,7 +599,7 @@ function TIC()
 					or 
 					"Level    "..current_level
 				),
-			35,
+			44,
 			50+((camera_zoom-(platform == "mobile" and 12 or 4))*22),
 			15,2,true
 		)
@@ -610,7 +610,7 @@ function TIC()
 	end
 	renderVoxelScene()
 	-- tutorial graphics
-	if current_level == 0 then
+	if current_level == 0 and pmem(1) == 0 then
 
 		if input_mode == "gamepad" and watered_plants == 0 then
 
@@ -618,18 +618,10 @@ function TIC()
 			spr(btn(7) and 287 or 271,28,128,0,1,0,0,1,1)
 	
 			if btn(7) then
-				if btn(4) then
-					spr(284,43,128,0)
-					temp_text = "zoom"
-				elseif btn(5) then
-					spr(285,43,128,0)
-					temp_text = "zoom"
-				else
-					for i = 0 , 3 do
-						if btn(i) then
-							spr(316 + i ,43,128,0)
-							temp_text = "move"
-						end
+				for i = 0 , 3 do
+					if btn(i) then
+						spr(316 + i ,43,128,0)
+						temp_text = "move"
 					end
 				end
 			end
@@ -655,6 +647,40 @@ function TIC()
 			spr(488,2,118,13,1,0,0,3,2)
 		end
 	end
+	if current_level == 0  and pmem(1) ~= 0
+	then
+		if input_mode == "" then
+			Text(
+				"Welcome back to",
+				72,40 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),
+				15,1,true)
+		else
+			Text(
+				"Press "..(input_mode=="keyboard" and"\n\n"or" ").."  to resume",
+				75,40 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),
+				15,1,false
+			)
+			if input_mode == "keyboard" then
+				spr(key(48) and 382 or 414,104,37 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),13,1,0,0,1,2)
+				spr(key(48) and 383 or 415,140,37 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),13,1,0,0,1,2)
+				for i=1,4 do
+					spr(key(48) and 381 or 413,104 + (8*i),37 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),13,1,0,0,1,2)
+				end
+				Text("Space",108,40 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16) + (key(48) and 2 or 0),6,1,false)
+			else
+				spr(btn(4) and 284 or 268,104,37 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),0,2,0,0,1,1)
+			end
+
+			if input("Jump") then
+				level_trans = true
+				restart = false
+
+				tcamera_zoom = -5
+				tcamera_incline=math.pi/6
+				tcamera_angle=0
+			end
+		end
+	end
 	if current_level == 1 then
 		if watered_plants == 0 then
 			Text("If you're stuck \nJust tap",14,113,15,1,false)
@@ -673,9 +699,6 @@ function TIC()
 	dwatered_plants = math.min(lerp(dwatered_plants,watered_plants,0.2),plants)
 	dwater = lerp(dwater,water,0.2)
 	Progressbar(190,2,40,dwatered_plants/plants, watered_plants == plants and 14 or 11)
-	-- for i =1,watered_plants do
-	-- 	spr(143,200-(i*10),4)
-	-- end
 	Progressbar(190,12,40,dwater/max_water,10)
 	if show_FPS then FPS() end
 	t=t+1
@@ -691,8 +714,8 @@ function update_cam()
 		move = {mouse_data[1],mouse_data[2]}
 		zoom = mouse_data[7]
 	elseif input_mode == "gamepad" and btn(7) then
-		if btn(1) then move[2] = 10 end
-		if btn(0) then move[2] = move[2] - 10 end
+		if btn(1) then move[2] = 10 ;zoom = 0.4 end
+		if btn(0) then move[2] = move[2] - 10;zoom = zoom - 0.4 end
 
 		if btn(3) then move[1] = 20 end
 		if btn(2) then move[1] = move[1] - 20 end
@@ -701,7 +724,10 @@ function update_cam()
 		if btnp(5) then zoom = zoom - 1 end
 	end
 
-	tcamera_incline = clamp(tcamera_incline - (move[2] * delta_time * 0.1),0,math.pi/2)
+	tcamera_incline = clamp(
+		(tcamera_incline-(move[2]*delta_time*0.1)) - (zoom * (math.pi/36))
+		,math.pi/6,math.pi/2 - math.pi/16
+	)
 	tcamera_angle = (tcamera_angle - (move[1] * delta_time * 0.2)) % (math.pi*2)
 	if not level_trans then
 		if platform == "desktop" then
@@ -713,7 +739,7 @@ function update_cam()
 
 	if input_mode == "" then
 		tcamera_angle = camera_angle+0.3
-		camera_zoom = lerp(camera_zoom,tcamera_zoom,delta_time*2)
+		camera_zoom = lerp(camera_zoom,tcamera_zoom,delta_time)
 		camera_angle = lerp_angle(camera_angle,tcamera_angle,delta_time*4)
 		camera_incline = lerp_angle(camera_incline,tcamera_incline,delta_time*2)
 	else
