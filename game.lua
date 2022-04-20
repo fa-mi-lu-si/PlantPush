@@ -203,6 +203,13 @@ start_level = 0
 		mset(map_pos.x,map_pos.y,tile)
 	end
 
+	colors = {}
+	for i=0 , 255 do
+		if fget(i,4) then
+			colors[i] = peek4((0x4000+(i)*32)*2+1%8+1%8*8) -- get a pixel from the sheet at i
+		end
+	end
+
 -- level data
 
 	function set_level(level)
@@ -290,6 +297,8 @@ start_level = 0
 		end
 		print(math.floor(1000/fps),19,13)
 		pix(37,etg[20]/2+11,10)
+	
+	print("Tex : "..texs.."\nnot Tex : "..tris.."\nblank : "..nulls,0,136-32)
 	end
 
 -- graphics
@@ -467,7 +476,13 @@ player = {
 --
 
 function TIC()
+	if show_FPS then
 	np=time() et=np-lp lp=np -- part of FPS debug
+	texs = 0
+	tris = 0
+	nulls = 0
+	end
+
 	delta_time=(time()-start_time)*0.001
 	start_time=time()
 
@@ -475,14 +490,6 @@ function TIC()
 	if input("Restart") and current_level~=0 then
 		level_trans = true
 		restart = true
-
-		tcamera_zoom = -5
-		tcamera_incline=math.pi/6
-		tcamera_angle=0
-	end
-	if btnp(5) and not btn(7) then
-		level_trans = true
-		restart = false
 
 		tcamera_zoom = -5
 		tcamera_incline=math.pi/6
@@ -671,7 +678,7 @@ function TIC()
 				spr(btn(4) and 284 or 268,104,37 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),0,2,0,0,1,1)
 			end
 
-			if input("Jump") then
+			if (input_mode=="gamepad" and btnp(4) or keyp(48)) then
 				level_trans = true
 				restart = false
 
@@ -719,9 +726,6 @@ function update_cam()
 
 		if btn(3) then move[1] = 20 end
 		if btn(2) then move[1] = move[1] - 20 end
-		
-		if btnp(4) then zoom = 1 end
-		if btnp(5) then zoom = zoom - 1 end
 	end
 
 	tcamera_incline = clamp(
@@ -741,11 +745,11 @@ function update_cam()
 		tcamera_angle = camera_angle+0.3
 		camera_zoom = lerp(camera_zoom,tcamera_zoom,delta_time)
 		camera_angle = lerp_angle(camera_angle,tcamera_angle,delta_time*4)
-		camera_incline = lerp_angle(camera_incline,tcamera_incline,delta_time*2)
+		camera_incline = lerp(camera_incline,tcamera_incline,delta_time*2)
 	else
 		camera_zoom = lerp(camera_zoom,tcamera_zoom,delta_time*2.5)
 		camera_angle = lerp_angle(camera_angle,tcamera_angle,delta_time*4)
-		camera_incline = lerp_angle(camera_incline,tcamera_incline,delta_time*3)
+		camera_incline = lerp(camera_incline,tcamera_incline,delta_time*3)
 	end
 
 	cc=math.cos(camera_angle)
@@ -772,11 +776,21 @@ end
 					setTexturesToFace(tile_offset,ly,layer_width,0,2)
 					if ss>0 then
 						for lx=0,layer_width-1 do
-							wallQuad(x1+camera_zoom*(1+lx),y1+camera_zoom*(ly),z1,x1+camera_zoom*(1+lx),y1+camera_zoom*(1+ly),z2,8*lx+7.99+tex_offset,8*ly,8*lx+tex_offset,8*ly+7.99)
+							ct = get_tile({x=lx,y=ly,z=layer})
+							if not fget(ct,3) then
+							wallQuad(x1+camera_zoom*(1+lx),y1+camera_zoom*(ly),z1,x1+camera_zoom*(1+lx),y1+camera_zoom*(1+ly),z2,8*lx+7.99+tex_offset,8*ly,8*lx+tex_offset,8*ly+7.99,fget(ct,4),ct)
+							else
+								if show_FPS then nulls = nulls + 1 end
+							end
 						end
 					else
 						for lx=layer_width-1,0,-1 do
-							wallQuad(x1+camera_zoom*(lx),y1+camera_zoom*(1+ly),z1,x1+camera_zoom*(lx),y1+camera_zoom*(ly),z2,8*lx+tex_offset,8*ly,8*lx+7.99+tex_offset,8*ly+7.99)
+						ct = get_tile({x=lx,y=ly,z=layer}) 
+							if not fget(ct,3) then
+							wallQuad(x1+camera_zoom*(lx),y1+camera_zoom*(1+ly),z1,x1+camera_zoom*(lx),y1+camera_zoom*(ly),z2,8*lx+tex_offset,8*ly,8*lx+7.99+tex_offset,8*ly+7.99,fget(ct,4),ct)
+							else
+								if show_FPS then nulls = nulls + 1 end
+							end
 						end
 					end
 					setTexturesToFace(tile_offset,ly,layer_width,0,1)
@@ -787,11 +801,21 @@ end
 					setTexturesToFace(tile_offset,ly,layer_width,0,2)
 					if ss>0 then
 						for lx=0,layer_width-1 do
-							wallQuad(x1+camera_zoom*(1+lx),y1+camera_zoom*(ly),z1,x1+camera_zoom*(1+lx),y1+camera_zoom*(1+ly),z2,8*lx+7.99+tex_offset,8*ly,8*lx+tex_offset,8*ly+7.99)
+							ct = get_tile({x=lx,y=ly,z=layer})
+							if not fget(ct,3) then
+							wallQuad(x1+camera_zoom*(1+lx),y1+camera_zoom*(ly),z1,x1+camera_zoom*(1+lx),y1+camera_zoom*(1+ly),z2,8*lx+7.99+tex_offset,8*ly,8*lx+tex_offset,8*ly+7.99,fget(ct,4),ct)
+							else
+								if show_FPS then nulls = nulls + 1 end
+							end
 						end
 					else
 						for lx=layer_width-1,0,-1 do
-							wallQuad(x1+camera_zoom*(lx),y1+camera_zoom*(1+ly),z1,x1+camera_zoom*(lx),y1+camera_zoom*(ly),z2,8*lx+tex_offset,8*ly,8*lx+7.99+tex_offset,8*ly+7.99)
+						ct = get_tile({x=lx,y=ly,z=layer})
+							if not fget(ct,3) then
+							wallQuad(x1+camera_zoom*(lx),y1+camera_zoom*(1+ly),z1,x1+camera_zoom*(lx),y1+camera_zoom*(ly),z2,8*lx+tex_offset,8*ly,8*lx+7.99+tex_offset,8*ly+7.99,fget(ct,4),ct)
+							else
+								if show_FPS then nulls = nulls + 1 end
+							end
 						end
 					end
 					setTexturesToFace(tile_offset,ly,layer_width,0,1)
@@ -806,9 +830,16 @@ end
 
 		end
 	end
-	function wallQuad(x1,y1,z1,x2,y2,z2,u1,v1,u2,v2)
-		textri(x1*cc-y1*ss+120,(y1*cc+x1*ss)*phicos-z1*phisin+68,x1*cc-y1*ss+120,(y1*cc+x1*ss)*phicos-z2*phisin+68,x2*cc-y2*ss+120,(y2*cc+x2*ss)*phicos-z1*phisin+68,u1,v1,u1,v2,u2,v1,true,transparency)
-		textri(x2*cc-y2*ss+120,(y2*cc+x2*ss)*phicos-z2*phisin+68,x1*cc-y1*ss+120,(y1*cc+x1*ss)*phicos-z2*phisin+68,x2*cc-y2*ss+120,(y2*cc+x2*ss)*phicos-z1*phisin+68,u2,v2,u1,v2,u2,v1,true,transparency)
+	function wallQuad(x1,y1,z1,x2,y2,z2,u1,v1,u2,v2,plain)
+		if plain then
+			tri(x1*cc-y1*ss+120,(y1*cc+x1*ss)*phicos-z1*phisin+68,x1*cc-y1*ss+120,(y1*cc+x1*ss)*phicos-z2*phisin+68,x2*cc-y2*ss+120,(y2*cc+x2*ss)*phicos-z1*phisin+68, colors[ct])
+			tri(x2*cc-y2*ss+120,(y2*cc+x2*ss)*phicos-z2*phisin+68,x1*cc-y1*ss+120,(y1*cc+x1*ss)*phicos-z2*phisin+68,x2*cc-y2*ss+120,(y2*cc+x2*ss)*phicos-z1*phisin+68, colors[ct])
+			if show_FPS then tris = tris + 1 end
+		else
+			textri(x1*cc-y1*ss+120,(y1*cc+x1*ss)*phicos-z1*phisin+68,x1*cc-y1*ss+120,(y1*cc+x1*ss)*phicos-z2*phisin+68,x2*cc-y2*ss+120,(y2*cc+x2*ss)*phicos-z1*phisin+68,u1,v1,u1,v2,u2,v1,true,transparency)
+			textri(x2*cc-y2*ss+120,(y2*cc+x2*ss)*phicos-z2*phisin+68,x1*cc-y1*ss+120,(y1*cc+x1*ss)*phicos-z2*phisin+68,x2*cc-y2*ss+120,(y2*cc+x2*ss)*phicos-z1*phisin+68,u2,v2,u1,v2,u2,v1,true,transparency)
+			if show_FPS then texs = texs + 1 end
+		end
 	end
 	function floorQuad(x1,y1,z1,x2,y2,z2,u1,v1,u2,v2)
 		textri(x1*cc-y1*ss+120,(y1*cc+x1*ss)*phicos-z1*phisin+68,x2*cc-y1*ss+120,(y1*cc+x2*ss)*phicos-z1*phisin+68,x1*cc-y2*ss+120,(y2*cc+x1*ss)*phicos-z2*phisin+68,u1,v1,u2,v1,u1,v2,true,transparency)
