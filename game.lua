@@ -5,10 +5,8 @@
 -- saveid: plantpush
 
 -- settings
-input_mode = ""
-platform = ""
-
 show_FPS = false
+force_gamepad = false
 start_level = 0
 
 -- voxel scene variables
@@ -465,6 +463,8 @@ player = {
 -- initialise the game
 	set_level(start_level)
 	camera_angle=math.pi*1.5
+	input_mode = ""
+	platform = ""
 	if start_level~=0 then
 		tcamera_zoom = 10
 		camera_zoom = tcamera_zoom
@@ -538,7 +538,7 @@ function TIC()
 	if current_level == 0 then -- tutorial level
 		if input_mode == "" and tcamera_zoom-camera_zoom < 0.7 then
 			if keyp() then
-				input_mode = "keyboard"
+				input_mode = force_gamepad and "gamepad" or "keyboard"
 				platform = "desktop"
 				tcamera_zoom = 8
 				tcamera_angle=math.pi*0.25
@@ -607,7 +607,8 @@ function TIC()
 					"Level    "..current_level
 				),
 			44,
-			50+((camera_zoom-(platform == "mobile" and 12 or 4))*22),
+			(current_level == num_levels and 40 or 50)
+			+((camera_zoom-(platform == "mobile" and 12 or 4))*22),
 			15,2,true
 		)
 	end
@@ -663,19 +664,22 @@ function TIC()
 				15,1,true)
 		else
 			Text(
-				"Press "..(input_mode=="keyboard" and"\n\n"or" ").."  to resume",
-				75,40 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),
+				"Press "..(input_mode=="keyboard" and"\n"or" ").."  to resume",
+				75,clamp(40 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),-50,136-(input_mode == "keyboard" and 20 or 10)),
 				15,1,false
 			)
 			if input_mode == "keyboard" then
-				spr(key(48) and 382 or 414,104,37 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),13,1,0,0,1,2)
-				spr(key(48) and 383 or 415,140,37 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),13,1,0,0,1,2)
+				spr(key(48) and 382 or 414,104,clamp(32 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),-50,136-28),13,1,0,0,1,2)
+				spr(key(48) and 383 or 415,140,clamp(32 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),-50,136-28),13,1,0,0,1,2)
 				for i=1,4 do
-					spr(key(48) and 381 or 413,104 + (8*i),37 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),13,1,0,0,1,2)
+					spr(key(48) and 381 or 413,104 + (8*i),clamp(32 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),-50,136-28),13,1,0,0,1,2)
 				end
-				Text("Space",108,40 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16) + (key(48) and 2 or 0),6,1,false)
+				Text("Space",108,clamp(37 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16) + (key(48) and 2 or 0),-50,136-23),6,1,false)
 			else
-				spr(btn(4) and 284 or 268,104,37 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),0,2,0,0,1,1)
+				for i=1,8 do
+					spr((btn(4) and 284 or 268)+31,104+a[i][1],a[i][2]+clamp(32 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),-50,136-18),0,2,0,0,1,1)
+				end
+				spr(btn(4) and 284 or 268,104,clamp(32 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),-50,136-18),0,2,0,0,1,1)
 			end
 
 			if (input_mode=="gamepad" and btnp(4) or keyp(48)) then
@@ -713,26 +717,26 @@ end
 
 function update_cam()
 	poke(0x7FC3F,1,1) -- mouse capture
-	local move = {0,0}
+	local move = 0
 	local zoom = 0
 
 	if input_mode == "keyboard" then
 		mouse_data = ({mouse()})
-		move = {mouse_data[1],mouse_data[2]}
+		move = mouse_data[1]
 		zoom = mouse_data[7]
 	elseif input_mode == "gamepad" and btn(7) then
-		if btn(1) then move[2] = 10 ;zoom = 0.4 end
-		if btn(0) then move[2] = move[2] - 10;zoom = zoom - 0.4 end
+		if btn(1) then zoom = 0.4 end
+		if btn(0) then zoom = zoom - 0.4 end
 
-		if btn(3) then move[1] = 20 end
-		if btn(2) then move[1] = move[1] - 20 end
+		if btn(3) then move = 20 end
+		if btn(2) then move = move - 20 end
 	end
-
+	if tcamera_incline - (zoom * (math.pi/36)) < math.pi/6+math.pi/16 then zoom = 0 end
 	tcamera_incline = clamp(
-		(tcamera_incline-(move[2]*delta_time*0.1)) - (zoom * (math.pi/36))
-		,math.pi/6,math.pi/2 - math.pi/16
+		tcamera_incline - (zoom * (math.pi/36))
+		,math.pi/6+math.pi/16,math.pi/2 - math.pi/16
 	)
-	tcamera_angle = (tcamera_angle - (move[1] * delta_time * 0.2)) % (math.pi*2)
+	tcamera_angle = (tcamera_angle - (move * delta_time * 0.2)) % (math.pi*2)
 	if not level_trans then
 		if platform == "desktop" then
 			tcamera_zoom = clamp(tcamera_zoom+zoom,4,16)
@@ -778,7 +782,7 @@ end
 						for lx=0,layer_width-1 do
 							ct = get_tile({x=lx,y=ly,z=layer})
 							if not fget(ct,3) then
-							wallQuad(x1+camera_zoom*(1+lx),y1+camera_zoom*(ly),z1,x1+camera_zoom*(1+lx),y1+camera_zoom*(1+ly),z2,8*lx+7.99+tex_offset,8*ly,8*lx+tex_offset,8*ly+7.99,fget(ct,4),ct)
+							wallQuad(x1+camera_zoom*(1+lx),y1+camera_zoom*(ly),z1,x1+camera_zoom*(1+lx),y1+camera_zoom*(1+ly),z2,8*lx+7.99+tex_offset,8*ly,8*lx+tex_offset,8*ly+7.99,fget(ct,4),fget(ct,5))
 							else
 								if show_FPS then nulls = nulls + 1 end
 							end
@@ -787,7 +791,7 @@ end
 						for lx=layer_width-1,0,-1 do
 						ct = get_tile({x=lx,y=ly,z=layer}) 
 							if not fget(ct,3) then
-							wallQuad(x1+camera_zoom*(lx),y1+camera_zoom*(1+ly),z1,x1+camera_zoom*(lx),y1+camera_zoom*(ly),z2,8*lx+tex_offset,8*ly,8*lx+7.99+tex_offset,8*ly+7.99,fget(ct,4),ct)
+							wallQuad(x1+camera_zoom*(lx),y1+camera_zoom*(1+ly),z1,x1+camera_zoom*(lx),y1+camera_zoom*(ly),z2,8*lx+tex_offset,8*ly,8*lx+7.99+tex_offset,8*ly+7.99,fget(ct,4),fget(ct,5))
 							else
 								if show_FPS then nulls = nulls + 1 end
 							end
@@ -803,7 +807,7 @@ end
 						for lx=0,layer_width-1 do
 							ct = get_tile({x=lx,y=ly,z=layer})
 							if not fget(ct,3) then
-							wallQuad(x1+camera_zoom*(1+lx),y1+camera_zoom*(ly),z1,x1+camera_zoom*(1+lx),y1+camera_zoom*(1+ly),z2,8*lx+7.99+tex_offset,8*ly,8*lx+tex_offset,8*ly+7.99,fget(ct,4),ct)
+							wallQuad(x1+camera_zoom*(1+lx),y1+camera_zoom*(ly),z1,x1+camera_zoom*(1+lx),y1+camera_zoom*(1+ly),z2,8*lx+7.99+tex_offset,8*ly,8*lx+tex_offset,8*ly+7.99,fget(ct,4),fget(ct,5))
 							else
 								if show_FPS then nulls = nulls + 1 end
 							end
@@ -812,7 +816,7 @@ end
 						for lx=layer_width-1,0,-1 do
 						ct = get_tile({x=lx,y=ly,z=layer})
 							if not fget(ct,3) then
-							wallQuad(x1+camera_zoom*(lx),y1+camera_zoom*(1+ly),z1,x1+camera_zoom*(lx),y1+camera_zoom*(ly),z2,8*lx+tex_offset,8*ly,8*lx+7.99+tex_offset,8*ly+7.99,fget(ct,4),ct)
+							wallQuad(x1+camera_zoom*(lx),y1+camera_zoom*(1+ly),z1,x1+camera_zoom*(lx),y1+camera_zoom*(ly),z2,8*lx+tex_offset,8*ly,8*lx+7.99+tex_offset,8*ly+7.99,fget(ct,4),fget(ct,5))
 							else
 								if show_FPS then nulls = nulls + 1 end
 							end
@@ -830,14 +834,15 @@ end
 
 		end
 	end
-	function wallQuad(x1,y1,z1,x2,y2,z2,u1,v1,u2,v2,plain)
+	function wallQuad(x1,y1,z1,x2,y2,z2,u1,v1,u2,v2,plain,trans_enabled)
+		if trans_enabled == nil then trans_enabled = true end
 		if plain then
 			tri(x1*cc-y1*ss+120,(y1*cc+x1*ss)*phicos-z1*phisin+68,x1*cc-y1*ss+120,(y1*cc+x1*ss)*phicos-z2*phisin+68,x2*cc-y2*ss+120,(y2*cc+x2*ss)*phicos-z1*phisin+68, colors[ct])
 			tri(x2*cc-y2*ss+120,(y2*cc+x2*ss)*phicos-z2*phisin+68,x1*cc-y1*ss+120,(y1*cc+x1*ss)*phicos-z2*phisin+68,x2*cc-y2*ss+120,(y2*cc+x2*ss)*phicos-z1*phisin+68, colors[ct])
 			if show_FPS then tris = tris + 1 end
 		else
-			textri(x1*cc-y1*ss+120,(y1*cc+x1*ss)*phicos-z1*phisin+68,x1*cc-y1*ss+120,(y1*cc+x1*ss)*phicos-z2*phisin+68,x2*cc-y2*ss+120,(y2*cc+x2*ss)*phicos-z1*phisin+68,u1,v1,u1,v2,u2,v1,true,transparency)
-			textri(x2*cc-y2*ss+120,(y2*cc+x2*ss)*phicos-z2*phisin+68,x1*cc-y1*ss+120,(y1*cc+x1*ss)*phicos-z2*phisin+68,x2*cc-y2*ss+120,(y2*cc+x2*ss)*phicos-z1*phisin+68,u2,v2,u1,v2,u2,v1,true,transparency)
+			textri(x1*cc-y1*ss+120,(y1*cc+x1*ss)*phicos-z1*phisin+68,x1*cc-y1*ss+120,(y1*cc+x1*ss)*phicos-z2*phisin+68,x2*cc-y2*ss+120,(y2*cc+x2*ss)*phicos-z1*phisin+68,u1,v1,u1,v2,u2,v1,true,trans_enabled and transparency or -1)
+			textri(x2*cc-y2*ss+120,(y2*cc+x2*ss)*phicos-z2*phisin+68,x1*cc-y1*ss+120,(y1*cc+x1*ss)*phicos-z2*phisin+68,x2*cc-y2*ss+120,(y2*cc+x2*ss)*phicos-z1*phisin+68,u2,v2,u1,v2,u2,v1,true,trans_enabled and transparency or -1)
 			if show_FPS then texs = texs + 1 end
 		end
 	end
