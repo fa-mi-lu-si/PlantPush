@@ -470,7 +470,7 @@ player = {
 		camera_zoom = tcamera_zoom
 		camera_angle = tcamera_angle
 		camera_incline = tcamera_incline
-		input_mode = "keyboard"
+		input_mode = force_gamepad and "gamepad" or "keyboard"
 		platform = "desktop"
 	end
 --
@@ -723,10 +723,10 @@ function update_cam()
 	if input_mode == "keyboard" then
 		mouse_data = ({mouse()})
 		move = mouse_data[1]
-		zoom = mouse_data[7]
+		zoom = mouse_data[7] / 2
 	elseif input_mode == "gamepad" and btn(7) then
-		if btn(1) then zoom = 0.4 end
-		if btn(0) then zoom = zoom - 0.4 end
+		if btn(1) then zoom = 0.2 end
+		if btn(0) then zoom = zoom - 0.2 end
 
 		if btn(3) then move = 20 end
 		if btn(2) then move = move - 20 end
