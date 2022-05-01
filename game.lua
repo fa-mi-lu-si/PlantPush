@@ -296,7 +296,12 @@ start_level = 0
 		print(math.floor(1000/fps),19,13)
 		pix(37,etg[20]/2+11,10)
 	
-	print("Tex : "..texs.."\nnot Tex : "..tris.."\nblank : "..nulls,0,136-32)
+	print(
+		"Tex : "..texs..
+		"\nnot Tex : "..tris..
+		"\nblank : "..nulls,
+		0,136-32
+	)
 	end
 
 -- graphics
@@ -314,7 +319,11 @@ start_level = 0
 		return n
 	end
 	a={{0,-1},{-1,0},{0,1},{1,0},{-1,-1},{1,1},{1,-1},{-1,1}}
-	outlined_Text = function (text, x, y, color, outline_color, scale, alt, corners)
+	function outlined_Text(
+		text, x, y,
+		color, outline_color,
+		scale, alt, corners
+	)
 		corners = corners or true
 		for i=1, corners and 8 or 4 do
 			Text(text,x+a[i][1],y+a[i][2],outline_color,scale,alt)
@@ -322,32 +331,28 @@ start_level = 0
 		Text(text,x,y,color,scale,alt)
 	end
 	function Progressbar(x,y,width,progress,colour)
-		rect(x,y,math.min(progress,1) * width,platform == "desktop" and 3 or 10,colour) -- progressbar
+		rect(
+			x, y,
+			math.min(progress,1) * width, platform == "desktop" and 3 or 10,
+			colour
+		)
 	end
 
 -- input
 
 	kbd = {
-		W = 23,
-		A = 01,
-		S = 19,
-		D = 04,
-		aW = 58,
-		aA = 60,
-		aS = 59,
-		aD = 61,
+		W = 23,	aW = 58,
+		A = 01,	aA = 60,
+		S = 19,	aS = 59,
+		D = 04,	aD = 61,
 		Jump = 48,
 		Restart = 18,
 	}
 	btns = {
-		W = 0,
-		A = 2,
-		S = 1,
-		D = 3,
-		aW = 0,
-		aA = 2,
-		aS = 1,
-		aD = 3,
+		W = 0, aW = 0,
+		A = 2, aA = 2,
+		S = 1, aS = 1,
+		D = 3, aD = 3,
 		Jump = 4,
 		Restart = 6,
 	}
@@ -372,7 +377,8 @@ player = {
 		-- check for input
 		local direction = {x=0,y=0,z=0} -- the direction the player wants to move
 
-		if fget(get_tile({x=self.pos.x,y=self.pos.y,z=self.pos.z-1}),0) then -- if the player is on solid ground
+		-- if the player is on solid ground
+		if fget(get_tile({x=self.pos.x,y=self.pos.y,z=self.pos.z-1}),0) then
 			self.jump_allowed = true
 			self.jumping = false
 		else
@@ -399,7 +405,10 @@ player = {
 		-- map keyboard buttons to directions based on camera rotation
 		local r = math.floor((((camera_angle+(math.pi/4))%(math.pi*2))/(math.pi*2))*4)
 		local n,s,e,w -- directons
-		if r == 0 then n="W"s="S"e="A"w="D" elseif r == 1 then n="D"s="A"e="W"w="S" elseif r == 2 then n="S"s="W"e="D"w="A" elseif r == 3 then n="A"s="D"e="S"w="W" end
+		if r == 0 then     n="W"; s="S"; e="A"; w="D"
+		elseif r == 1 then n="D"; s="A"; e="W"; w="S"
+		elseif r == 2 then n="S"; s="W"; e="D"; w="A"
+		elseif r == 3 then n="A"; s="D"; e="S"; w="W" end
 
 		local moved = true
 		if input(n) or input("a"..n) then
@@ -520,7 +529,10 @@ function TIC()
 					level_trans = false
 				end
 			else
-				set_level(current_level+1 > num_levels and 1 or current_level+1)
+				set_level(
+					current_level+1 > num_levels 
+					and 1 or current_level+1
+				)
 				sparks(240/2,136*(4/7))
 
 				-- set camera variables
@@ -536,6 +548,16 @@ function TIC()
 	player:update()
 
 	if current_level == 0 then -- tutorial level
+		if pmem(1) ~= 0 
+			and (input_mode=="gamepad" and btnp(4) or keyp(48))
+		then
+			level_trans = true
+			restart = false
+	
+			tcamera_zoom = -5
+			tcamera_incline=math.pi/6
+			tcamera_angle=0
+		end
 		if input_mode == "" and tcamera_zoom-camera_zoom < 0.7 then
 			if keyp() then
 				input_mode = force_gamepad and "gamepad" or "keyboard"
@@ -573,7 +595,10 @@ function TIC()
 
 				if tile == 14 or tile == 136 then -- for every bucket
 					local tile_above = get_tile({x=x,y=y,z=z+1})
-					if tile_above == 79 or tile_above == 15 or tile_above == 135 then --if a plant pot is over a bucket
+					if
+						--if a plant pot is over a bucket
+						tile_above == 79 or tile_above == 15 or tile_above == 135
+					then
 						water = water+1 -- temporarily increase the water
 						tiles[tile_above].run({x=x,y=y,z=z+1},{x=1,y=0,z=0}) -- try to water the plant
 
@@ -641,10 +666,19 @@ function TIC()
 			Text("Try collecting \nsome water \nfrom the buckets",140,13,15,1,false)
 		end
 		if water > 0 and watered_plants == 0 then
-			Text("  Water->\n is used\n to grow plants",140,13,15,1,false)
+			Text(" Water ->\n is used\n to grow plants",140,13,15,1,false)
 		end
 		if watered_plants > 0 then
-			Text(watered_plants == plants and "All plants watered!  ->" or watered_plants.." plant"..(watered_plants > 1 and "s" or "") .." watered ->",80,2,15,1,false)
+			Text(
+				watered_plants == plants
+				and
+					"All plants watered!  ->"
+				or
+					watered_plants.." plant"..
+					(watered_plants > 1 and "s" or "")
+					.." watered ->"
+				,80,2,15,1,false
+			)
 		end
 
 		if platform == "mobile" then
@@ -665,30 +699,57 @@ function TIC()
 		else
 			Text(
 				"Press "..(input_mode=="keyboard" and"\n"or" ").."  to resume",
-				75,clamp(40 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),-50,136-(input_mode == "keyboard" and 20 or 10)),
+				75,
+				clamp(
+					40 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),
+					-50,
+					136-(input_mode == "keyboard" and 20 or 10)
+				),
 				15,1,false
 			)
 			if input_mode == "keyboard" then
-				spr(key(48) and 382 or 414,104,clamp(32 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),-50,136-28),13,1,0,0,1,2)
-				spr(key(48) and 383 or 415,140,clamp(32 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),-50,136-28),13,1,0,0,1,2)
+				spr(
+					key(48) and 382 or 414,
+					104,clamp(32 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16)
+					,-50,136-28),13,1,0,0,1,2
+				)
+				spr(
+					key(48) and 383 or 415,
+					140,clamp(32 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16)
+					,-50,136-28),13,1,0,0,1,2
+				)
 				for i=1,4 do
-					spr(key(48) and 381 or 413,104 + (8*i),clamp(32 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),-50,136-28),13,1,0,0,1,2)
+					spr(
+						key(48) and 381 or 413,
+						104 + (8*i),clamp(32 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16)
+						,-50,136-28),13,1,0,0,1,2
+					)
 				end
-				Text("Space",108,clamp(37 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16) + (key(48) and 2 or 0),-50,136-23),6,1,false)
+				Text(
+					"Space",
+					108,
+					clamp(
+						35 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16) + (key(48) and 2 or 0),
+						-50,
+						136-25
+					),
+					6,1,true
+				)
 			else
 				for i=1,8 do
-					spr((btn(4) and 284 or 268)+31,104+a[i][1],a[i][2]+clamp(32 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),-50,136-18),0,2,0,0,1,1)
+					spr(
+						(btn(4) and 284 or 268)+31,
+						104+a[i][1],
+						a[i][2]+clamp(32 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),-50,136-18),
+						0,2,0,0,1,1
+					)
 				end
-				spr(btn(4) and 284 or 268,104,clamp(32 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),-50,136-18),0,2,0,0,1,1)
-			end
-
-			if (input_mode=="gamepad" and btnp(4) or keyp(48)) then
-				level_trans = true
-				restart = false
-
-				tcamera_zoom = -5
-				tcamera_incline=math.pi/6
-				tcamera_angle=0
+				spr(
+					btn(4) and 284 or 268,
+					104,
+					clamp(32 + ((camera_zoom-(platform == "mobile" and 12 or 4))*16),-50,136-18),
+					0,2,0,0,1,1
+				)
 			end
 		end
 	end
@@ -699,7 +760,7 @@ function TIC()
 				spr(btn(6) and 286 or 270,60,119,0)
 			else
 				spr(key(18) and 382 or 414,58,119,13,1,0,0,2,2)
-				Text("R",62,122 + (key(18) and 2 or 0),6,1,false)
+				Text("R",62,122 + (key(18) and 2 or 0),6,1,true)
 			end
 		end
 		if watered_plants == 1 then
