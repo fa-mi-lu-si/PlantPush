@@ -333,9 +333,13 @@ start_level = 0
 	function Progressbar(x,y,width,progress,colour)
 		rect(
 			x, y,
-			math.min(progress,1) * width, platform == "desktop" and 3 or 10,
+			math.min(progress,1) * width, 3,
 			colour
 		)
+		if progress > 0.07 then
+			pix(x-2,y+1,15)
+			pix(x+width,y+1,15)
+		end
 	end
 
 -- input
@@ -485,6 +489,7 @@ player = {
 --
 
 function TIC()
+
 	if show_FPS then
 	np=time() et=np-lp lp=np -- part of FPS debug
 	texs = 0
@@ -504,60 +509,63 @@ function TIC()
 		tcamera_incline=math.pi/6
 		tcamera_angle=0
 	end
-	if level_trans then
-		if camera_zoom < (restart and 0.7 or 0.1) then
-
-			if 
-				restart
+	if level_trans and camera_zoom < (restart and 0.7 or 0.1) then
+		if restart then
+			tcamera_zoom = 0.7
+			-- if not pressing the restart action
+			if not(
+				input_mode == "gamepad" and
+					(btn(btns["Restart"]) and not btn(7) )
+				or 
+					key(kbd["Restart"]))
 			then
-				tcamera_zoom = 0.7
-				-- if not pressing the restart action
-				if not(
-					input_mode == "gamepad" and
-						(btn(btns["Restart"]) and not btn(7) )
-					or 
-						key(kbd["Restart"]))
-				then
-					set_level(current_level)
-					restart = false
-
-					-- set camera variables
-					tcamera_angle=math.pi*1.75
-					tcamera_incline=math.pi*0.3
-					tcamera_zoom=8
-
-					level_trans = false
-				end
-			else
-				set_level(
-					current_level+1 > num_levels 
-					and 1 or current_level+1
-				)
-				sparks(240/2,136*(4/7))
+				set_level(current_level)
+				restart = false
 
 				-- set camera variables
 				tcamera_angle=math.pi*1.75
 				tcamera_incline=math.pi*0.3
-				tcamera_zoom = current_level == 15 and 4 or 8
+				tcamera_zoom=8
 
 				level_trans = false
 			end
+		else
+			set_level(
+				current_level+1 > num_levels 
+				and 1 or current_level+1
+			)
+			sparks(240/2,136*(4/7))
+
+			-- set camera variables
+			tcamera_angle=math.pi*1.75
+			tcamera_incline=math.pi*0.3
+			tcamera_zoom = current_level == 15 and 4 or 8
+
+			level_trans = false
 		end
 	end
 
 	player:update()
 
 	if current_level == 0 then -- tutorial level
-		if pmem(1) ~= 0 
-			and (input_mode=="gamepad" and btnp(4) or keyp(48))
+		-- resume game or delete progress
+		if
+			pmem(1) ~= 0
 		then
-			level_trans = true
-			restart = false
-	
-			tcamera_zoom = -5
-			tcamera_incline=math.pi/6
-			tcamera_angle=0
+			if (input_mode=="gamepad" and btnp(6) or keyp(18)) then
+				pmem(1,0)
+			end
+			if (input_mode=="gamepad" and btnp(4) or keyp(48)) then
+				level_trans = true
+				restart = false
+		
+				tcamera_zoom = -5
+				tcamera_incline=math.pi/6
+				tcamera_angle=0
+			end
 		end
+
+		-- set input mode
 		if input_mode == "" and tcamera_zoom-camera_zoom < 0.7 then
 			if keyp() then
 				input_mode = force_gamepad and "gamepad" or "keyboard"
@@ -621,6 +629,7 @@ function TIC()
 	--render game
 	cls(transparency)
 	poke(0x03FF8,transparency)
+
 	if not level_trans then
 		Text( -- background text
 			current_level == 0 and
@@ -636,12 +645,28 @@ function TIC()
 			+((camera_zoom-(platform == "mobile" and 12 or 4))*22),
 			15,2,true
 		)
+		Progressbar(
+			(240-camera_zoom*12)/2,
+			clamp(
+				((camera_zoom-(platform == "mobile" and 12 or 4))*40),
+				0,134
+			),
+			camera_zoom*12,current_level/num_levels,15
+		)
+	else
+		Progressbar(
+			(240-camera_zoom*12)/2,
+			134,
+			camera_zoom*12,current_level/num_levels,15
+		)
 	end
+
 	draw_psystems()
 	if #particle_systems > 0 then
 		rect(110,75,20,10,transparency)
 	end
 	renderVoxelScene()
+
 	-- tutorial graphics
 	if current_level == 0 and pmem(1) == 0 then
 
@@ -689,8 +714,7 @@ function TIC()
 			spr(488,2,118,13,1,0,0,3,2)
 		end
 	end
-	if current_level == 0  and pmem(1) ~= 0
-	then
+	if current_level == 0 and pmem(1) ~= 0 then
 		if input_mode == "" then
 			Text(
 				"Welcome back to",
@@ -751,6 +775,13 @@ function TIC()
 					0,2,0,0,1,1
 				)
 			end
+			-- draw clear progress button
+			Text(
+				"Press "..
+				(input_mode == "keyboard" and "[R]" or "(X)")..
+				" \nto delete \nsaved progress",
+				168,112,15,1,false
+			)
 		end
 	end
 	if current_level == 1 then
