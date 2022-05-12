@@ -30,7 +30,10 @@ start_level = 0
 	function clamp(n,low,high)return math.min(math.max(n,low),high)end
 	function lerp(a,b,t) return (1-t)*a + t*b end
 	function frnd(max) return math.random()*max end
-	function rotate(point,angle)return{x=(point.x*math.cos(angle)-point.y*math.sin(angle)),y=(point.y*math.cos(angle)+point.x*math.sin(angle))}end
+	function rotate(point,angle)return{
+		x=(point.x*math.cos(angle)-point.y*math.sin(angle)),
+		y=(point.y*math.cos(angle)+point.x*math.sin(angle))
+	}end
 	function lerp_angle(a, b, t)
 		local a_vec = rotate({x=0,y=-1},a) b_vec = rotate({x=0,y=-1},b)
 		local lerped_vec = {x=lerp(a_vec.x,b_vec.x,t),y=lerp(a_vec.y,b_vec.y,t)}
@@ -40,11 +43,6 @@ start_level = 0
 -- game variables
 	local t=0
 	start_time=time()
-
-	num_levels = 15
-	current_level = 0
-	level_trans = false -- used for the level transition animation
-	restart = false
 
 	plants = 0 -- number of plants in the level
 	watered_plants = 0
@@ -124,18 +122,14 @@ start_level = 0
 		name = "portal",
 		run = function(pos,dir)
 			if current_level == num_levels or watered_plants < plants then return end
-			level_trans = true
-
-			tcamera_zoom = -2
-			tcamera_incline=math.pi/6
-			tcamera_angle=0
+			change_level(false,-2)
 		end
 	}
 
 	push_tile = function (pos,direction)
 
 		self = get_tile(pos)
-		
+
 		if self == 78 and direction.z == 1 then return end
 		if self == 195 and (direction.x ~= 0 or direction.z == 1) then return end
 		if self == 196 and (direction.y ~= 0 or direction.z == 1) then return end
@@ -157,12 +151,7 @@ start_level = 0
 
 		if target_tile == 129 then -- fall into water
 			if self == 79 or self == 15 or self == 135 then
-				level_trans = true
-				restart = true
-
-				tcamera_zoom = -4
-				tcamera_incline=math.pi/6
-				tcamera_angle=0
+				change_level(true,-4)
 			end
 			set_tile(pos,0)
 			return
@@ -209,8 +198,19 @@ start_level = 0
 	end
 
 -- level data
+	num_levels = 15
+	current_level = 0
+	level_trans = false -- used for the level transition animation
+	restart = false
+	function change_level(reset,zoom)
+		level_trans = true
 
-	function set_level(level)
+		if reset then restart = true end
+		tcamera_zoom = zoom
+		tcamera_incline=math.pi/6
+		tcamera_angle=0
+	end
+	function set_level_data(level)
 
 		if current_level == 0 and level == 1 and (pmem(1) ~= 0) then
 			level = pmem(1)
@@ -295,7 +295,7 @@ start_level = 0
 		end
 		print(math.floor(1000/fps),19,13)
 		pix(37,etg[20]/2+11,10)
-	
+
 	print(
 		"Tex : "..texs..
 		"\nnot Tex : "..tris..
@@ -388,13 +388,8 @@ player = {
 		else
 			self.jump_allowed = false
 			if not self.jumping then
-				if self.pos.z==0 then 
-					level_trans = true
-					restart = true
-
-					tcamera_zoom = -4
-					tcamera_incline=math.pi/6
-					tcamera_angle=0
+				if self.pos.z==0 then
+					change_level(true,-4)
 					return
 				end
 				direction.z = -1
@@ -440,12 +435,7 @@ player = {
 
 		-- fall into water
 		if target_tile == 129 then
-			level_trans = true
-			restart = true
-
-			tcamera_zoom = -4
-			tcamera_incline=math.pi/6
-			tcamera_angle=0
+			change_level(true,-4)
 			return
 		end
 
@@ -474,7 +464,7 @@ player = {
 }
 
 -- initialise the game
-	set_level(start_level)
+	set_level_data(start_level)
 	camera_angle=math.pi*1.5
 	input_mode = ""
 	platform = ""
@@ -502,12 +492,7 @@ function TIC()
 
 	-- update game
 	if input("Restart") and current_level~=0 then
-		level_trans = true
-		restart = true
-
-		tcamera_zoom = -5
-		tcamera_incline=math.pi/6
-		tcamera_angle=0
+		change_level(true,-5)
 	end
 	if level_trans and camera_zoom < (restart and 0.7 or 0.1) then
 		if restart then
@@ -516,10 +501,10 @@ function TIC()
 			if not(
 				input_mode == "gamepad" and
 					(btn(btns["Restart"]) and not btn(7) )
-				or 
+				or
 					key(kbd["Restart"]))
 			then
-				set_level(current_level)
+				set_level_data(current_level)
 				restart = false
 
 				-- set camera variables
@@ -530,8 +515,8 @@ function TIC()
 				level_trans = false
 			end
 		else
-			set_level(
-				current_level+1 > num_levels 
+			set_level_data(
+				current_level+1 > num_levels
 				and 1 or current_level+1
 			)
 			sparks(240/2,136*(4/7))
@@ -556,12 +541,7 @@ function TIC()
 				pmem(1,0)
 			end
 			if (input_mode=="gamepad" and btnp(4) or keyp(48)) then
-				level_trans = true
-				restart = false
-		
-				tcamera_zoom = -5
-				tcamera_incline=math.pi/6
-				tcamera_angle=0
+				change_level(false,-5)
 			end
 		end
 
@@ -617,11 +597,11 @@ function TIC()
 						end
 					end
 				end
-				
+
 				if fget(tile,6) then -- flags 6 (dark blue) means that a block can be affected by gravity
 					push_tile(pos,{x=0,y=0,z=-1})
 				end
-				
+
 			end
 		end
 	end
@@ -637,7 +617,7 @@ function TIC()
 				or
 				(current_level == num_levels and
 					"Thanks\n\n\nfor playing :)"
-					or 
+					or
 					"Level    "..current_level
 				),
 			44,
@@ -674,7 +654,7 @@ function TIC()
 
 			local temp_text = "camera"
 			spr(btn(7) and 287 or 271,28,128,0,1,0,0,1,1)
-	
+
 			if btn(7) then
 				for i = 0 , 3 do
 					if btn(i) then
@@ -798,6 +778,9 @@ function TIC()
 			Text(" How will we water \n the other one?",140,13,15,1,false)
 		end
 	end
+	if current_level == 3  then
+		if watered_plants == 1 and get_tile({x=4,y=5,z=3}) ~= 79 then Text("how will we get the other one up") end
+	end
 
 	dwatered_plants = math.min(lerp(dwatered_plants,watered_plants,0.2),plants)
 	dwater = lerp(dwater,water,0.2)
@@ -881,7 +864,7 @@ end
 						end
 					else
 						for lx=layer_width-1,0,-1 do
-						ct = get_tile({x=lx,y=ly,z=layer}) 
+						ct = get_tile({x=lx,y=ly,z=layer})
 							if not fget(ct,3) then
 							wallQuad(x1+camera_zoom*(lx),y1+camera_zoom*(1+ly),z1,x1+camera_zoom*(lx),y1+camera_zoom*(ly),z2,8*lx+tex_offset,8*ly,8*lx+7.99+tex_offset,8*ly+7.99,fget(ct,4),fget(ct,5))
 							else
@@ -956,38 +939,38 @@ end
 	function make_psystem(minlife, maxlife, minstartsize, maxstartsize, minendsize, maxendsize)
 		local ps = {
 		-- global particle system params
-	
+
 		-- if true, automatically deletes the particle system if all of it's particles died
 		autoremove = true,
-	
+
 		minlife = minlife,
 		maxlife = maxlife,
-	
+
 		minstartsize = minstartsize,
 		maxstartsize = maxstartsize,
 		minendsize = minendsize,
 		maxendsize = maxendsize,
-	
+
 		-- container for the particles
 		particles = {},
-	
+
 		-- emittimers dictate when a particle should start
 		-- they called every frame, and call emit_particle when they see fit
 		-- they should return false if no longer need to be updated
 		emittimers = {},
-	
+
 		-- emitters must initialize p.x, p.y, p.vx, p.vy
 		emitters = {},
-	
+
 		-- every ps needs a drawfunc
 		drawfuncs = {},
-	
+
 		-- affectors affect the movement of the particles
 		affectors = {},
 		}
-	
+
 		table.insert(particle_systems, ps)
-	
+
 		return ps
 	end
 	function update_psystems()
@@ -1003,31 +986,31 @@ end
 				table.remove(ps.emittimers, key)
 			end
 		end
-	
+
 		for key,p in pairs(ps.particles) do
 			p.phase = (timenow-p.starttime)/(p.deathtime-p.starttime)
-	
+
 			for key,a in pairs(ps.affectors) do
 				a.affectfunc(p, a.params)
 			end
-	
+
 			p.x = p.x + p.vx
 			p.y = p.y + p.vy
-	
+
 			local dead = false
 			if (p.x<0 or p.x>240 or p.y<0 or p.y>136) then
 				dead = true
 			end
-	
+
 			if (timenow>=p.deathtime) then
 				dead = true
 			end
-	
+
 			if (dead==true) then
 				table.remove(ps.particles, key)
 			end
 		end
-	
+
 		if (ps.autoremove==true and #ps.particles<=0) then
 			local psidx = -1
 			for pskey,pps in pairs(particle_systems) do
@@ -1055,18 +1038,18 @@ end
 	end
 	function emit_particle(psystem)
 		local p = {}
-	
+
 		local ecount = nil
 		local e = psystem.emitters[math.random(#psystem.emitters)]
 		e.emitfunc(p, e.params)
-	
+
 		p.phase = 0
 		p.starttime = time()
 		p.deathtime = time()+frnd(psystem.maxlife-psystem.minlife)+psystem.minlife
-	
+
 		p.startsize = frnd(psystem.maxstartsize-psystem.minstartsize)+psystem.minstartsize
 		p.endsize = frnd(psystem.maxendsize-psystem.minendsize)+psystem.minendsize
-	
+
 		table.insert(psystem.particles, p)
 	end
 
@@ -1077,11 +1060,11 @@ end
 			end
 			return false
 		end
-		
+
 		function emitter_point(p, params)
 			p.x = params.x
 			p.y = params.y
-		
+
 			p.vx = frnd(params.maxstartvx-params.minstartvx)+params.minstartvx
 			p.vy = frnd(params.maxstartvy-params.minstartvy)+params.minstartvy
 		end
@@ -1103,7 +1086,7 @@ end
 	-- particles
 	function sparks(ex,ey)
 		local ps = make_psystem(1000,2000, 0,0, 0,0)
-	
+
 		table.insert(ps.emittimers,
 			{
 				timerfunc = emittimer_burst,
