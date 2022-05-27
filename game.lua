@@ -37,7 +37,7 @@ start_level = 0
 	function lerp_angle(a, b, t)
 		local a_vec = rotate({x=0,y=-1},a) b_vec = rotate({x=0,y=-1},b)
 		local lerped_vec = {x=lerp(a_vec.x,b_vec.x,t),y=lerp(a_vec.y,b_vec.y,t)}
-		return math.pi-math.atan2(lerped_vec.x,lerped_vec.y)
+		return math.pi-math.atan(lerped_vec.x,lerped_vec.y)
 	end
 
 -- game variables
@@ -296,12 +296,19 @@ start_level = 0
 		print(math.floor(1000/fps),19,13)
 		pix(37,etg[20]/2+11,10)
 
-	print(
-		"Tex : "..texs..
-		"\nnot Tex : "..tris..
-		"\nblank : "..nulls,
-		0,136-32
-	)
+		print(
+			"Tex : "..texs..
+			"\nnot Tex : "..tris..
+			"\nblank : "..nulls,
+			0,136-32
+		)
+		print(
+			"Player at\n"..
+			"x: "..player.pos.x..
+			"\ny: "..player.pos.y..
+			"\nz: "..player.pos.z,
+			0,64
+		)
 	end
 
 -- graphics
@@ -779,7 +786,23 @@ function TIC()
 		end
 	end
 	if current_level == 3  then
-		if watered_plants == 1 and get_tile({x=4,y=5,z=3}) ~= 79 then Text("how will we get the other one up") end
+		if
+			watered_plants == 1 and
+			(function() -- is the plant pot on the platform
+				local found = get_tile({x=4,y=5,z=3}) == 79 or get_tile({x=6,y=7,z=3}) == 79
+				local centre = {x=6,y=5,z=3}
+				for i=1, 8 do
+					if get_tile({x=centre.x+a[i][1],y=centre.y+a[i][2],z=centre.z}) == 79 then
+						found = true
+					end
+				end
+				return not found
+			end)()
+		then
+			Text("Is there a way to push \nthe other one up?",0,0,15,1,false)
+		elseif watered_plants == 1 then
+			Text("Plants push objects \nup when they grow",0,0,15,1,false)
+		end
 	end
 
 	dwatered_plants = math.min(lerp(dwatered_plants,watered_plants,0.2),plants)
