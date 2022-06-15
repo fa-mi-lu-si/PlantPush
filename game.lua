@@ -664,21 +664,17 @@ function TIC()
 			+ ((camera_zoom - (platform == "mobile" and 12 or 4)) * 22),
 			15, 2, true
 		)
-		Progressbar(
-			(240 - camera_zoom * 12) / 2,
-			clamp(
-				((camera_zoom - (platform == "mobile" and 12 or 4)) * 40),
-				0, 134
-			),
-			camera_zoom * 12, current_level / num_levels, 15
-		)
-	else
-		Progressbar(
-			(240 - camera_zoom * 12) / 2,
-			134,
-			camera_zoom * 12, current_level / num_levels, 15
-		)
 	end
+
+	-- Render the Level Progress
+	local bar_width = camera_zoom * layer_width * math.sqrt(2)
+	Progressbar(
+		(240 - bar_width) / 2,
+		134,
+		bar_width,
+		current_level / num_levels,
+		15
+	)
 
 	draw_psystems()
 	if #particle_systems > 0 then
