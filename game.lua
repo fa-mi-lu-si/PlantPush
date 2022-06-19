@@ -569,6 +569,10 @@ function TIC()
 
 			level_trans = false
 		end
+
+		if current_level == 3 then
+			tcamera_angle = math.pi * 1.25
+		end
 	end
 
 	player:update()
