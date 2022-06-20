@@ -208,7 +208,7 @@ for i = 0, 255 do
 end
 
 -- level data
-num_levels = 15
+num_levels = 11
 current_level = 0
 level_trans = false -- used for the level transition animation
 restart = false
@@ -558,7 +558,7 @@ function TIC()
 		else
 			set_level_data(
 				current_level + 1 > num_levels
-				and 1 or current_level + 1
+				and num_levels or current_level + 1
 			)
 			sparks(240 / 2, 136 * (4 / 7))
 
@@ -834,6 +834,24 @@ function TIC()
 		elseif watered_plants == 1 then
 			Text("Plants push objects \nup when they grow", 0, 0, 15, 1, false)
 		end
+	end
+	if current_level == 5 then
+		if watered_plants == 0 and (player.pos.z == 3 or player.pos.z == 2) then
+			Text("Think \nOUTSIDE\nthe box", 0, 0, 15, 1, false)
+		end
+
+		if
+			watered_plants == plants and
+			not (
+				get_tile({x=5,y=4,z=2}) == 13 or
+				get_tile({x=7,y=6,z=2}) == 13
+			)
+		then
+			Text("How will you climb up?", 0, 0, 15, 1, false)
+		end
+	end
+	if current_level == 6 then
+		Text("It's best to make sure\nthe plants don't fall", 132, 2, 15, 1, false)
 	end
 
 	dwatered_plants = math.min(lerp(dwatered_plants, watered_plants, 0.2), plants)
