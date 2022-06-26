@@ -560,7 +560,9 @@ function TIC()
 				current_level + 1 > num_levels
 				and num_levels or current_level + 1
 			)
+			deleteallps()
 			sparks(240 / 2, 136 * (4 / 7))
+			stars()
 
 			-- set camera variables
 			tcamera_angle = math.pi * 1.75
@@ -1149,10 +1151,25 @@ function emitter_point(p, params)
 	p.vx = frnd(params.maxstartvx - params.minstartvx) + params.minstartvx
 	p.vy = frnd(params.maxstartvy - params.minstartvy) + params.minstartvy
 end
+function emitter_screen(p, params)
+	p.ax = math.random(0,240)
+	p.ay = math.random(0,136)
+
+	p.x = 0
+	p.y = 0
+	p.vx = 0
+	p.vy = 0
+end
+
+function affect_wrap(p, params)
+	p.x = (p.ax + (camera_angle/(math.pi*2))*240) % 240
+	p.y = (p.ay + (camera_incline/(math.pi*2))*136) % 136
+end
 
 function draw_ps_pix(ps, params)
 	for key, p in pairs(ps.particles) do
 		c = math.floor(p.phase * #params.colors) + 1
+		if #params.colors == 1 then c = 1 end
 		pix(p.x, p.y, params.colors[c])
 	end
 end
@@ -1190,3 +1207,31 @@ function sparks(ex, ey)
 		}
 	)
 end
+
+function stars()
+	local ps = make_psystem(math.huge, math.huge, 0, 0, 0, 0)
+
+	table.insert(ps.emittimers,
+		{
+			timerfunc = emittimer_burst,
+			params = { num = 15 }
+		}
+	)
+	table.insert(ps.emitters,
+		{
+			emitfunc = emitter_screen,
+		}
+	)
+	table.insert(ps.affectors,
+		{
+			affectfunc = affect_wrap,
+		}
+	)
+	table.insert(ps.drawfuncs,
+		{
+			drawfunc = draw_ps_pix,
+			params = { colors = {15} }
+		}
+	)
+end
+stars()
