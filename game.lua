@@ -46,6 +46,16 @@ function lerp_angle(a, b, t)
 	return math.pi - math.atan(lerped_vec.x, lerped_vec.y)
 end
 
+function shuffle(array) 
+	newArray = {}
+	while (#array > 0) do
+		-- random index
+		n = math.ceil(frnd(#array))
+		table.insert(newArray,table.remove(array,n))
+	end
+	return newArray
+end
+
 -- game variables
 local t = 0
 start_time = time()
@@ -85,6 +95,7 @@ tiles[15] = {
 		set_tile(pos, 143)
 		watered_plants = watered_plants + 1
 		water = water - 1
+		just_watered = true
 
 		-- spawn a portal when all plants are watered
 		if watered_plants == plants then
@@ -577,6 +588,7 @@ function TIC()
 		end
 	end
 
+	just_watered = false
 	player:update()
 
 	if current_level == 0 then -- tutorial level
@@ -618,6 +630,10 @@ function TIC()
 
 	if water >= max_water then replace = { 136, 14 } else replace = { 14, 136 } end
 
+	if show_FPS and keyp(20) then
+		trace("-----------\n".."Level "..current_level)
+	end
+	
 	-- iterate over all the tiles in the game
 	for x = 0, layer_width - 1 do
 		for y = 0, layer_height - 1 do
@@ -641,6 +657,12 @@ function TIC()
 							water = water - 1
 						end
 					end
+				end
+
+				-- press T to show the positions of all targets
+				if show_FPS and tile == 192 and keyp(20) then
+					set_tile(pos,0)
+					trace("{x="..x..",y="..y..",z="..z.."}")
 				end
 
 				if fget(tile, 6) then -- flags 6 (dark blue) means that a block can be affected by gravity
@@ -820,8 +842,8 @@ function TIC()
 		end
 	end
 	if current_level == 3 then
-		if watered_plants == 1 and
-			(function() -- is the plant pot on the platform
+		if watered_plants == 1 and --the pot is on the platform
+			(function()
 				local found = get_tile({ x = 4, y = 5, z = 3 }) == 79 or get_tile({ x = 6, y = 7, z = 3 }) == 79
 				local centre = { x = 6, y = 5, z = 3 }
 				for i = 1, 8 do
@@ -836,10 +858,46 @@ function TIC()
 		elseif watered_plants == 1 then
 			Text("Plants push objects \nup when they grow", 0, 0, 15, 1, false)
 		end
+		local lfs = shuffle({ -- leaf colour should change
+		{2,6,5},{2,7,5},{3,6,5},{3,7,5},{6,7,6},
+		{3,8,5},{8,9,6},{6,8,6},{7,7,6},{1,8,5},
+		{9,6,4},{8,6,4},{1,6,5},{1,7,5},{2,8,5},
+		{6,9,6},{8,8,6},{9,5,4},{7,9,6},{8,7,6},
+		{8,4,4},{9,4,4},{7,8,6},{8,5,4},{10,4,4},
+		{10,5,4},{10,6,4}
+		})
+		if watered_plants == 1 and just_watered then
+			for p = 1 , 9 do
+				set_tile({x=lfs[p][1],y=lfs[p][2],z=lfs[p][3]},69)
+			end
+		end
+		if watered_plants == 2 and just_watered then
+			for i , v in pairs(lfs) do
+				set_tile({x=v[1],y=v[2],z=v[3]},69)
+			end
+		end
+	end
+	if current_level == 4 then
+		if get_tile({x=7,y=6,z=1}) == 0 then
+			Text(
+				'Try filling a gap first',
+				2,2,15,1,false
+			)
+		elseif get_tile({x=7,y=6,z=1}) ~= 13 then
+			Text(
+				'???',
+				2,2,15,1,false
+			)
+		end
 	end
 	if current_level == 5 then
 		if watered_plants == 0 and (player.pos.z == 3 or player.pos.z == 2) then
 			Text("Think \nOUTSIDE\nthe box", 0, 0, 15, 1, false)
+		end
+		if watered_plants == 1 and just_watered then
+			for i , v in pairs({{2,6,0},{0,6,0},{5,11,0},{7,1,0},{11,1,0},{11,2,0}}) do
+				set_tile({x=v[1],y=v[2],z=v[3]},133)
+			end
 		end
 
 		if
@@ -854,6 +912,30 @@ function TIC()
 	end
 	if current_level == 6 then
 		Text("It's best to make sure\nthe plants don't fall", 132, 2, 15, 1, false)
+	end
+	if current_level == 8 then
+		if watered_plants == plants and just_watered then
+			for i , v in pairs({{4,1,4},{4,6,2},{4,9,3},{6,6,2},{9,7,2}}) do
+				set_tile({x=v[1],y=v[2],z=v[3]},133)
+			end
+		end
+	end
+	if current_level == 9 then
+		if watered_plants == 2 and just_watered then
+			for i , v in pairs({{7,4,5},{8,2,4},{8,3,5},{9,2,4},{9,3,6},{9,4,6}}) do
+				set_tile({x=v[1],y=v[2],z=v[3]},69)
+			end
+		end
+		if watered_plants == 3 and just_watered then
+			for i , v in pairs({{7,3,5},{8,1,4},{8,4,5},{9,1,4},{10,2,6},{10,3,6}}) do
+				set_tile({x=v[1],y=v[2],z=v[3]},69)
+			end
+		end
+		if watered_plants == 4 and just_watered then
+			for i , v in pairs({{6,3,5},{6,4,5},{6,5,5},{7,0,4},{7,1,4},{7,2,4},{7,5,5},{8,0,4},{8,2,6},{8,3,6},{8,4,6},{8,5,5},{9,0,4},{9,2,6},{10,4,6}}) do
+				set_tile({x=v[1],y=v[2],z=v[3]},69)
+			end
+		end
 	end
 
 	dwatered_plants = math.min(lerp(dwatered_plants, watered_plants, 0.2), plants)
