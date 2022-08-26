@@ -146,7 +146,7 @@ tiles[77] = {
 
 function push_tile(pos, direction)
 
-	self = get_tile(pos)
+	local self = get_tile(pos)
 
 	if self == 78 and direction.z == 1 then return end
 	if self == 195 and (direction.x ~= 0 or direction.z == 1) then return end
@@ -181,7 +181,7 @@ function push_tile(pos, direction)
 	end
 
 	if not fget(target_tile, 0) then
-		set_tile(target_pos, get_tile(pos))
+		set_tile(target_pos, self)
 		set_tile(pos, 0)
 	end
 end
@@ -349,7 +349,10 @@ function Text(text, x, y, colour, scale, alt)
 	return n
 end
 
-a = { { 0, -1 }, { -1, 0 }, { 0, 1 }, { 1, 0 }, { -1, -1 }, { 1, 1 }, { 1, -1 }, { -1, 1 } }
+a = {
+	{ 0, -1 }, { -1, 0 }, { 0, 1 }, { 1, 0 },
+	{ -1, -1 }, { 1, 1 }, { 1, -1 }, { -1, 1 }
+}
 function outlined_Text(
         text, x, y,
         color, outline_color,
@@ -605,8 +608,8 @@ function TIC()
 
 		-- set input mode
 		if input_mode == "" and tcamera_zoom - camera_zoom < 0.7 then
-			if keyp() then
-				input_mode = force_gamepad and "gamepad" or "keyboard"
+			if keyp() and not force_gamepad then
+				input_mode = "keyboard"
 				platform = "desktop"
 				tcamera_zoom = 8
 				tcamera_angle = math.pi * 0.25
@@ -616,7 +619,7 @@ function TIC()
 					if btnp(i) then
 						input_mode = "gamepad"
 						platform = ({ mouse() })[3] and "mobile" or "desktop"
-						tcamera_zoom = platform == "desktop" and 8 or 12
+						tcamera_zoom = 8
 						tcamera_angle = math.pi * 0.25
 						tcamera_incline = math.pi * 0.3
 					end
@@ -665,7 +668,8 @@ function TIC()
 					trace("{x="..x..",y="..y..",z="..z.."}")
 				end
 
-				if fget(tile, 6) then -- flags 6 (dark blue) means that a block can be affected by gravity
+				-- flags 6 (dark blue) means that a block can be affected by gravity
+				if fget(tile, 6) and not fget(get_tile({x=x,y=y,z=z-1}),0) then
 					push_tile(pos, { x = 0, y = 0, z = -1 })
 				end
 
@@ -689,7 +693,7 @@ function TIC()
 			),
 			44,
 			(current_level == num_levels and 40 or 50)
-			+ ((camera_zoom - (platform == "mobile" and 12 or 4)) * 22),
+			+ ((camera_zoom - 4) * 22),
 			15, 2, true
 		)
 	end
@@ -708,7 +712,16 @@ function TIC()
 	if #particle_systems > 0 then
 		rect(110, 75, 20, 10, transparency)
 	end
-	renderVoxelScene()
+
+	if platform == "mobile" then
+		-- temporarily increase camera zoom before render on mobile
+		local keep = camera_zoom
+		camera_zoom = camera_zoom * 1.25
+		renderVoxelScene()
+		camera_zoom = keep
+	else
+		renderVoxelScene()
+	end
 
 	-- tutorial graphics
 	if current_level == 0 and pmem(1) == 0 then
@@ -761,14 +774,14 @@ function TIC()
 		if input_mode == "" then
 			Text(
 				"Welcome back to",
-				72, 40 + ((camera_zoom - (platform == "mobile" and 12 or 4)) * 16),
+				72, 40 + ((camera_zoom - 4) * 16),
 				15, 1, true)
 		else
 			Text(
 				"Press " .. (input_mode == "keyboard" and "\n" or " ") .. "  to resume",
 				75,
 				clamp(
-					40 + ((camera_zoom - (platform == "mobile" and 12 or 4)) * 16),
+					40 + ((camera_zoom - 4) * 16),
 					-50,
 					136 - (input_mode == "keyboard" and 20 or 10)
 				),
@@ -777,18 +790,18 @@ function TIC()
 			if input_mode == "keyboard" then
 				spr(
 					key(48) and 382 or 414,
-					104, clamp(32 + ((camera_zoom - (platform == "mobile" and 12 or 4)) * 16)
+					104, clamp(32 + ((camera_zoom - 4) * 16)
 						, -50, 136 - 28), 13, 1, 0, 0, 1, 2
 				)
 				spr(
 					key(48) and 383 or 415,
-					140, clamp(32 + ((camera_zoom - (platform == "mobile" and 12 or 4)) * 16)
+					140, clamp(32 + ((camera_zoom - 4) * 16)
 						, -50, 136 - 28), 13, 1, 0, 0, 1, 2
 				)
 				for i = 1, 4 do
 					spr(
 						key(48) and 381 or 413,
-						104 + (8 * i), clamp(32 + ((camera_zoom - (platform == "mobile" and 12 or 4)) * 16)
+						104 + (8 * i), clamp(32 + ((camera_zoom - 4) * 16)
 							, -50, 136 - 28), 13, 1, 0, 0, 1, 2
 					)
 				end
@@ -796,7 +809,7 @@ function TIC()
 					"Space",
 					108,
 					clamp(
-						35 + ((camera_zoom - (platform == "mobile" and 12 or 4)) * 16) + (key(48) and 2 or 0),
+						35 + ((camera_zoom - 4) * 16) + (key(48) and 2 or 0),
 						-50,
 						136 - 25
 					),
@@ -807,14 +820,14 @@ function TIC()
 					spr(
 						(btn(4) and 284 or 268) + 31,
 						104 + a[i][1],
-						a[i][2] + clamp(32 + ((camera_zoom - (platform == "mobile" and 12 or 4)) * 16), -50, 136 - 18),
+						a[i][2] + clamp(32 + ((camera_zoom - 4) * 16), -50, 136 - 18),
 						0, 2, 0, 0, 1, 1
 					)
 				end
 				spr(
 					btn(4) and 284 or 268,
 					104,
-					clamp(32 + ((camera_zoom - (platform == "mobile" and 12 or 4)) * 16), -50, 136 - 18),
+					clamp(32 + ((camera_zoom - 4) * 16), -50, 136 - 18),
 					0, 2, 0, 0, 1, 1
 				)
 			end
@@ -969,11 +982,7 @@ function update_cam()
 	)
 	tcamera_angle = (tcamera_angle - (move * delta_time * 0.2)) % (math.pi * 2)
 	if not level_trans then
-		if platform == "desktop" then
-			tcamera_zoom = clamp(tcamera_zoom + zoom, 4, 16)
-		elseif platform == "mobile" then
-			tcamera_zoom = clamp(tcamera_zoom + zoom, 8, 24)
-		end
+		tcamera_zoom = clamp(tcamera_zoom + zoom, 4, 16)
 	end
 
 	if input_mode == "" then
