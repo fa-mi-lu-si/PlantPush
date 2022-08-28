@@ -6,8 +6,14 @@
 
 -- settings
 show_FPS = false
-force_gamepad = false
+force_gamepad = true
 start_level = 0
+
+-- {move , zoom}
+mobile_threshold = {
+	move = 7,
+	zoom = 2
+}
 
 -- voxel scene variables
 local transparency = 13 --transparency mask for voxels and background colour
@@ -33,7 +39,8 @@ function lerp(a, b, t) return (1 - t) * a + t * b end
 
 function frnd(max) return math.random() * max end
 
-function rotate(point, angle) return {
+function rotate(point, angle)
+	return {
 		x = (point.x * math.cos(angle) - point.y * math.sin(angle)),
 		y = (point.y * math.cos(angle) + point.x * math.sin(angle))
 	}
@@ -687,13 +694,13 @@ function TIC()
 			"PLANT PUSH"
 			or
 			(current_level == num_levels and
-				"Thanks\n\n\nfor playing :)"
+				"Thanks"..(platform == "desktop" and "\n\n\n" or "\n").."for playing :)"
 				or
 				"Level    " .. current_level
 			),
 			44,
 			(current_level == num_levels and 40 or 50)
-			+ ((camera_zoom - 4) * 22),
+			+ ((camera_zoom - 4) * 22) - (platform == "mobile" and 40 or 0),
 			15, 2, true
 		)
 	end
@@ -716,7 +723,7 @@ function TIC()
 	if platform == "mobile" then
 		-- temporarily increase camera zoom before render on mobile
 		local keep = camera_zoom
-		camera_zoom = camera_zoom * 1.25
+		camera_zoom = math.min(camera_zoom * 1.6,13.6)
 		renderVoxelScene()
 		camera_zoom = keep
 	else
@@ -726,7 +733,7 @@ function TIC()
 	-- tutorial graphics
 	if current_level == 0 and pmem(1) == 0 then
 
-		if input_mode == "gamepad" and watered_plants == 0 then
+		if platform == "desktop" and input_mode == "gamepad" and watered_plants == 0 then
 
 			local temp_text = "camera"
 			spr(btn(7) and 287 or 271, 28, 128, 0, 1, 0, 0, 1, 1)
@@ -741,6 +748,9 @@ function TIC()
 			end
 			if temp_text == "camera" then spr(335, 43, 128, 0) end
 			Text("  +   = camera", 28, 128, 15, 1, false)
+		end
+		if platform == "mobile" then
+			Text("Swipe to move camera", 28, 128, 15, 1, false)
 		end
 
 		if water == 0 and camera_zoom > 7 and watered_plants == 0 then
@@ -968,6 +978,22 @@ function update_cam()
 		mouse_data = ({ mouse() })
 		move = mouse_data[1]
 		zoom = mouse_data[7] / 2
+	elseif platform == "mobile" then
+		local any_button_pressed = false
+		for i = 0, 7 do
+			if btn(i) then
+				any_button_pressed = true
+			end
+		end
+		if not any_button_pressed then
+			mouse_data = ({ mouse() })
+			if mouse_data[1] > mobile_threshold.move or mouse_data[1] < -mobile_threshold.move then
+				move = mouse_data[1] * 0.75
+			elseif mouse_data[2] > mobile_threshold.zoom or mouse_data[2] < -mobile_threshold.zoom then
+				zoom = mouse_data[2] * 0.3
+			end
+		end
+		
 	elseif input_mode == "gamepad" and btn(7) then
 		if btn(1) then zoom = 0.2 end
 		if btn(0) then zoom = zoom - 0.2 end
