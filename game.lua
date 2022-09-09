@@ -6,7 +6,7 @@
 
 -- settings
 show_FPS = false
-force_gamepad = true
+force_gamepad = false
 start_level = 0
 
 -- {move , zoom}
@@ -723,7 +723,7 @@ function TIC()
 	if platform == "mobile" then
 		-- temporarily increase camera zoom before render on mobile
 		local keep = camera_zoom
-		camera_zoom = math.min(camera_zoom * 1.6,13.6)
+		camera_zoom = camera_zoom * 1.25
 		renderVoxelScene()
 		camera_zoom = keep
 	else
@@ -934,7 +934,42 @@ function TIC()
 		end
 	end
 	if current_level == 6 then
-		Text("It's best to make sure\nthe plants don't fall", 132, 2, 15, 1, false)
+		-- the numbers of unwatered plant found on each layer
+		local found_S = {0,0,0}
+		-- the numbers of watered plant found on each layer
+		local found_W = {0,0,0}
+		for z = 1, 3 do
+
+			for y = 0, layer_height - 1 do
+				for x = 0, layer_width - 1 do
+					if get_tile({x=x,y=y,z=z}) == 79 then
+						found_S[z] = found_S[z] + 1
+					end
+					if get_tile({x=x,y=y,z=z}) == 143 then
+						found_W[z] =found_W[z] + 1
+					end
+				end
+			end
+
+		end
+
+		found_T = (found_S[1]+found_W[1])..(found_S[2]+found_W[2])..(found_S[3]+found_W[3])
+		found_S = found_S[1]..found_S[2]..found_S[3]
+		found_W = found_W[1]..found_W[2]..found_W[3]
+
+		if found_S == "111" then
+			Text("It's best to make sure\nthe plants don't fall", 132, 2, 15, 1, false)
+		elseif found_T ~= "111" then
+			Text("Oops!\n You might want \n to restart", 132, 2, 15, 1, false)
+		elseif watered_plants == 1 then
+			if found_W ==  "100" and string.match(found_S,"[01][01][01]") then
+				Text("\n OK, go for \n the next one", 132, 2, 15, 1, false)
+			end
+			if found_W ==  "010" then
+				Text(" Well done \n for figuring that out.\n Now try again", 132, 2, 15, 1, false)
+			end
+		end
+
 	end
 	if current_level == 8 then
 		if watered_plants == plants and just_watered then
@@ -990,7 +1025,7 @@ function update_cam()
 			if mouse_data[1] > mobile_threshold.move or mouse_data[1] < -mobile_threshold.move then
 				move = mouse_data[1] * 0.75
 			elseif mouse_data[2] > mobile_threshold.zoom or mouse_data[2] < -mobile_threshold.zoom then
-				zoom = mouse_data[2] * 0.3
+				zoom = mouse_data[2] * 0.1
 			end
 		end
 		
@@ -1331,7 +1366,7 @@ function stars()
 	table.insert(ps.emittimers,
 		{
 			timerfunc = emittimer_burst,
-			params = { num = 15 }
+			params = { num = 20 }
 		}
 	)
 	table.insert(ps.emitters,
