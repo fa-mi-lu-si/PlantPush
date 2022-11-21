@@ -100,12 +100,14 @@ tiles[15] = {
 
 		set_tile({ x = pos.x, y = pos.y, z = pos.z + 1 }, 128)
 		set_tile(pos, 143)
+		sfx(1)
 		watered_plants = watered_plants + 1
 		water = water - 1
 		just_watered = true
 
 		-- spawn a portal when all plants are watered
 		if watered_plants == plants then
+			sfx(2)
 			set_tile(portal_pos, 77)
 		end
 	end
@@ -654,14 +656,15 @@ function TIC()
 				if tile == replace[1] then set_tile(pos, replace[2]) end
 
 				if tile == 14 or tile == 136 then -- for every bucket
-					local tile_above = get_tile({ x = x, y = y, z = z + 1 })
-					if --if a plant pot is over a bucket
+					local pos_above = { x = x, y = y, z = z + 1 }
+					local tile_above = get_tile(pos_above)
+					if --a plant pot is over a bucket
 					tile_above == 79 or tile_above == 15 or tile_above == 135
 					then
 						water = water + 1 -- temporarily increase the water
-						tiles[tile_above].run({ x = x, y = y, z = z + 1 }, { x = 1, y = 0, z = 0 }) -- try to water the plant
+						tiles[tile_above].run(pos_above, { x = 1, y = 0, z = 0 }) -- try to water the plant
 
-						if get_tile({ x = x, y = y, z = z + 1 }) == 143 then -- if the plant was watered
+						if get_tile(pos_above) == 143 then -- if the plant was watered
 							set_tile(pos, 13)
 						else
 							water = water - 1
@@ -754,7 +757,7 @@ function TIC()
 		end
 
 		if water == 0 and camera_zoom > 7 and watered_plants == 0 then
-			Text("Try collecting \nsome water \nfrom the buckets", 140, 13, 15, 1, false)
+			Text("Try collecting \nsome water", 140, 13, 15, 1, false)
 		end
 		if water > 0 and watered_plants == 0 then
 			Text(" Water ->\n is used\n to grow plants", 140, 13, 15, 1, false)
@@ -900,19 +903,6 @@ function TIC()
 			end
 		end
 	end
-	if current_level == 4 then
-		if get_tile({x=7,y=6,z=1}) == 0 then
-			Text(
-				'Try filling a gap first',
-				2,2,15,1,false
-			)
-		elseif get_tile({x=7,y=6,z=1}) ~= 13 then
-			Text(
-				'???',
-				2,2,15,1,false
-			)
-		end
-	end
 	if current_level == 5 then
 		if watered_plants == 0 and (player.pos.z == 3 or player.pos.z == 2) then
 			Text("Think \nOUTSIDE\nthe box", 0, 0, 15, 1, false)
@@ -971,28 +961,11 @@ function TIC()
 		end
 
 	end
-	if current_level == 8 then
-		if watered_plants == plants and just_watered then
-			for i , v in pairs({{4,1,4},{4,6,2},{4,9,3},{6,6,2},{9,7,2}}) do
-				set_tile({x=v[1],y=v[2],z=v[3]},133)
-			end
-		end
-	end
-	if current_level == 9 then
-		if watered_plants == 2 and just_watered then
-			for i , v in pairs({{7,4,5},{8,2,4},{8,3,5},{9,2,4},{9,3,6},{9,4,6}}) do
-				set_tile({x=v[1],y=v[2],z=v[3]},69)
-			end
-		end
-		if watered_plants == 3 and just_watered then
-			for i , v in pairs({{7,3,5},{8,1,4},{8,4,5},{9,1,4},{10,2,6},{10,3,6}}) do
-				set_tile({x=v[1],y=v[2],z=v[3]},69)
-			end
-		end
-		if watered_plants == 4 and just_watered then
-			for i , v in pairs({{6,3,5},{6,4,5},{6,5,5},{7,0,4},{7,1,4},{7,2,4},{7,5,5},{8,0,4},{8,2,6},{8,3,6},{8,4,6},{8,5,5},{9,0,4},{9,2,6},{10,4,6}}) do
-				set_tile({x=v[1],y=v[2],z=v[3]},69)
-			end
+	if current_level == 7 then
+		if get_tile({x=2,y=2,z=2}) == 198 then
+			Text("Water can be stored", 14, 113, 15, 1, false)
+		elseif get_tile({x=2,y=2,z=2}) == 13 then
+			Text("Only once", 14, 113, 15, 1, false)
 		end
 	end
 
@@ -1025,10 +998,9 @@ function update_cam()
 			if mouse_data[1] > mobile_threshold.move or mouse_data[1] < -mobile_threshold.move then
 				move = mouse_data[1] * 0.75
 			elseif mouse_data[2] > mobile_threshold.zoom or mouse_data[2] < -mobile_threshold.zoom then
-				zoom = mouse_data[2] * 0.1
+				zoom = mouse_data[2] * 0.7
 			end
 		end
-		
 	elseif input_mode == "gamepad" and btn(7) then
 		if btn(1) then zoom = 0.2 end
 		if btn(0) then zoom = zoom - 0.2 end
@@ -1314,8 +1286,8 @@ function emitter_screen(p, params)
 end
 
 function affect_wrap(p, params)
-	p.x = (p.ax + (camera_angle/(math.pi*2))*240) % 240
-	p.y = (p.ay + (camera_incline/(math.pi*2))*136) % 136
+	p.x = (p.ax + (camera_angle/(math.pi*2))*240*2) % 240
+	p.y = (p.ay - (camera_incline/(math.pi*2))*136*4) % 136
 end
 
 function draw_ps_pix(ps, params)
