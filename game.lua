@@ -1,19 +1,14 @@
 -- title: Plant Push
--- author: 51ftyone
+-- author: Samuel Familusi
 -- desc: help the garden, the garden helps you
 -- script: lua
 -- saveid: plantpush
 
 -- settings
-show_FPS = false
+debug_mode = false
 force_gamepad = false
 start_level = 0
 
--- {move , zoom}
-mobile_threshold = {
-	move = 7,
-	zoom = 2
-}
 
 -- voxel scene variables
 local transparency = 13 --transparency mask for voxels and background colour
@@ -27,7 +22,7 @@ camera_angle = math.pi
 camera_incline = 0
 camera_zoom = 0
 
--- used for smooth movement
+-- camera smoothly interpolates to these values
 tcamera_angle = math.pi * 1.75
 tcamera_incline = math.pi * 0.3
 tcamera_zoom = 4
@@ -53,24 +48,57 @@ function lerp_angle(a, b, t)
 	return math.pi - math.atan(lerped_vec.x, lerped_vec.y)
 end
 
-function shuffle(array) 
+function shuffle(array)
 	newArray = {}
 	while (#array > 0) do
 		-- random index
 		n = math.ceil(frnd(#array))
-		table.insert(newArray,table.remove(array,n))
+		table.insert(newArray, table.remove(array, n))
 	end
 	return newArray
 end
 
+Vec = {
+
+	new = function(x, y, z)
+		local v = { x = x, y = y, z = z }
+		setmetatable(v, Vec.mt)
+		return v
+	end,
+
+	mt = {
+
+		__add = function(u, v)
+			return Vec.new(u.x + v.x, u.y + v.y, u.z + v.z)
+		end,
+
+		__sub = function(u, v)
+			return Vec.new(u.x - v.x, u.y - v.y, u.z - v.z)
+		end,
+
+		__eq = function(u, v)
+			return u.x == v.x and u.y == v.y and u.z == v.z
+		end,
+
+		__tostring = function(v)
+			return "(" .. v.x .. "," .. v.y .. "," .. v.z .. ")"
+		end,
+
+		__concat = function(s, v)
+			return s .. "(" .. v.x .. "," .. v.y .. "," .. v.z .. ")"
+		end,
+	},
+}
+
+up = Vec.new(0,0,1)
+
 -- game variables
-local t = 0
+local t = 0 -- times the game has updated
 start_time = time()
 
 plants = 0 -- number of plants in the level
 watered_plants = 0
-water = 0
-max_water = 1
+water = false
 replace = { 0, 0 } -- replace the first tile with the second
 portal_pos = nil
 
@@ -85,24 +113,24 @@ tiles = {} -- tile data
 tiles[15] = {
 	name = "plant_pot",
 	run = function(pos, dir)
-		if water < 1 then return end
+		if not water then return end
 		if dir.z ~= 0 then return end
 
-		local tile_above = get_tile({ x = pos.x, y = pos.y, z = pos.z + 1 })
+		local tile_above = get_tile(pos + up)
 		if fget(tile_above, 2) then
-			push_tile({ x = pos.x, y = pos.y, z = pos.z + 1 }, { x = 0, y = 0, z = 1 })
+			push_tile(pos + up , up)
 		end
 
-		tile_above = get_tile({ x = pos.x, y = pos.y, z = pos.z + 1 })
+		tile_above = get_tile(pos + up)
 		if fget(tile_above, 0) then
 			return
 		end
 
-		set_tile({ x = pos.x, y = pos.y, z = pos.z + 1 }, 128)
+		set_tile(pos + up, 128)
 		set_tile(pos, 143)
 		sfx(1)
 		watered_plants = watered_plants + 1
-		water = water - 1
+		water = false
 		just_watered = true
 
 		-- spawn a portal when all plants are watered
@@ -123,8 +151,8 @@ tiles[135] = {
 tiles[14] = {
 	name = "bucket_pushable",
 	run = function(pos, dir)
-		if water < max_water then
-			water = water + 1
+		if not water then
+			water = true
 			set_tile(pos, 13)
 		end
 	end
@@ -136,9 +164,10 @@ tiles[136] = {
 tiles[198] = {
 	name = "empty_bucket",
 	run = function(pos, dir)
-		if water < 1 then return end
-		water = water - 1
-		set_tile(pos, 14)
+		if water then 
+			set_tile(pos, 14)
+			water = false
+		end
 	end
 }
 tiles[197] = {
@@ -161,14 +190,10 @@ function push_tile(pos, direction)
 	if self == 195 and (direction.x ~= 0 or direction.z == 1) then return end
 	if self == 196 and (direction.y ~= 0 or direction.z == 1) then return end
 
-	local target_pos = {
-		x = pos.x + direction.x,
-		y = pos.y + direction.y,
-		z = pos.z + direction.z
-	}
+	local target_pos = pos + direction
 
 	if -- if the target position is out of the level
-	target_pos.x < 0 or target_pos.x > layer_width - 1
+		target_pos.x < 0 or target_pos.x > layer_width - 1
 		or target_pos.y < 0 or target_pos.y > layer_height - 1
 		or target_pos.z < 0 or target_pos.z > num_layers - 1
 	then return
@@ -196,18 +221,19 @@ function push_tile(pos, direction)
 end
 
 function game_to_map(game_pos)
-	return {
-		x = game_pos.x + (game_pos.z * (layer_map_separation)),
-		y = game_pos.y
-	}
+	return Vec.new(
+		game_pos.x + (game_pos.z * (layer_map_separation)),
+		game_pos.y,
+		0
+	)
 end
 
 function map_to_game(map_pos)
-	return {
-		x = map_pos.x % (layer_map_separation),
-		y = map_pos.y,
-		z = map_pos.x // (layer_map_separation)
-	}
+	return Vec.new(
+		map_pos.x % (layer_map_separation),
+		map_pos.y,
+		map_pos.x // (layer_map_separation)
+	)
 end
 
 function get_tile(pos)
@@ -249,7 +275,7 @@ function set_level_data(level)
 
 	-- reset the game
 	watered_plants = 0
-	water = 0
+	water = false
 	plants = 0
 	player.jumping = false
 
@@ -275,7 +301,7 @@ function set_level_data(level)
 	for x = 0, layer_width - 1 do
 		for y = 0, layer_height - 1 do
 			for z = 0, num_layers - 1 do
-				local pos = { x = x, y = y, z = z }
+				local pos = Vec.new(x,y,z)
 				local tile = get_tile(pos)
 
 				if tile == 64 then
@@ -334,10 +360,7 @@ function FPS()
 		0, 136 - 32
 	)
 	print(
-		"Player at\n" ..
-		"x: " .. player.pos.x ..
-		"\ny: " .. player.pos.y ..
-		"\nz: " .. player.pos.z,
+		"Player at\n" .. player.pos,
 		0, 64
 	)
 end
@@ -404,9 +427,16 @@ btns = {
 	Jump = 4,
 	Restart = 6,
 }
+prev_mouse = {}
 
 function input(action)
 	if input_mode == "keyboard" then
+		if (action == "W" and ({ mouse() })[3] and not prev_mouse[3]) or
+			(action == "Jump" and ({ mouse() })[4] and not prev_mouse[4]) or
+			(action == "S" and ({ mouse() })[5] and not prev_mouse[5])
+		then
+			return true
+		end
 		return keyp(kbd[action])
 	elseif input_mode == "gamepad" then
 		return btnp(btns[action]) and not btn(7)
@@ -416,23 +446,30 @@ end
 --
 
 player = {
-	pos = { x = 2, y = 5, z = 1 },
+	pos =  Vec.new(0,0,0),
 
 	jumping = false,
+	jump_start_time = 0,
 	jump_allowed = true,
 
 	update = function(self)
 
 		-- check for input
-		local direction = { x = 0, y = 0, z = 0 } -- the direction the player wants to move
+		local direction = Vec.new(0,0,0) -- the direction the player wants to move
 
 		-- if the player is on solid ground
-		if fget(get_tile({ x = self.pos.x, y = self.pos.y, z = self.pos.z - 1 }), 0) then
+		if fget(get_tile(self.pos - up), 0) then
 			self.jump_allowed = true
 			self.jumping = false
 		else
 			self.jump_allowed = false
-			if not self.jumping then
+
+			if self.jumping then
+				if time() - self.jump_start_time > 500 then
+					self.jumping = false
+					self.jump_start_time = 0
+				end
+			else
 				if self.pos.z == 0 then
 					change_level(true, -4)
 					return
@@ -444,6 +481,7 @@ player = {
 		if input("Jump") and self.jump_allowed then
 			direction.z = 1
 			self.jumping = true
+			self.jump_start_time = time()
 		end
 
 		-- map keyboard buttons to directions based on camera rotation
@@ -488,11 +526,12 @@ player = {
 			self.jumping = false
 		end
 
-		local target_pos = {
-			x = clamp(self.pos.x + direction.x, 0, layer_width - 1),
-			y = clamp(self.pos.y + direction.y, 0, layer_height - 1),
-			z = clamp(self.pos.z + direction.z, 0, num_layers - 1)
-		}
+		local target_pos = self.pos + direction
+		local target_pos = Vec.new(
+			clamp(target_pos.x, 0, layer_width - 1),
+			clamp(target_pos.y, 0, layer_height - 1),
+			clamp(target_pos.z, 0, num_layers - 1)
+		)
 		local target_tile = get_tile(target_pos)
 
 		-- fall into water
@@ -542,13 +581,16 @@ end
 
 function TIC()
 
-	if show_FPS then
-		np = time()
-		et = np - lp
-		lp = np -- part of FPS debug
-		texs = 0
-		tris = 0
-		nulls = 0
+	-- part of FPS debug
+	np = time()
+	et = np - lp
+	lp = np
+	texs = 0
+	tris = 0
+	nulls = 0
+
+	if keyp(42) then
+		debug_mode = not debug_mode
 	end
 
 	delta_time = (time() - start_time) * 0.001
@@ -627,7 +669,7 @@ function TIC()
 				for i = 0, 7 do
 					if btnp(i) then
 						input_mode = "gamepad"
-						platform = ({ mouse() })[3] and "mobile" or "desktop"
+						platform = (({ mouse() })[3] and not prev_mouse[3]) and "mobile" or "desktop"
 						tcamera_zoom = 8
 						tcamera_angle = math.pi * 0.25
 						tcamera_incline = math.pi * 0.3
@@ -640,47 +682,46 @@ function TIC()
 	update_cam()
 	update_psystems()
 
-	if water >= max_water then replace = { 136, 14 } else replace = { 14, 136 } end
+	if water then replace = { 136, 14 } else replace = { 14, 136 } end
 
-	if show_FPS and keyp(20) then
-		trace("-----------\n".."Level "..current_level)
+	if debug_mode and keyp(20) then
+		trace("-----------\n" .. "Level " .. current_level)
 	end
-	
+
 	-- iterate over all the tiles in the game
 	for x = 0, layer_width - 1 do
 		for y = 0, layer_height - 1 do
 			for z = 0, num_layers - 1 do
-				local pos = { x = x, y = y, z = z }
+				local pos = Vec.new(x,y,z)
 				local tile = get_tile(pos)
 
 				if tile == replace[1] then set_tile(pos, replace[2]) end
 
 				if tile == 14 or tile == 136 then -- for every bucket
-					local pos_above = { x = x, y = y, z = z + 1 }
-					local tile_above = get_tile(pos_above)
+					local tile_above = get_tile(pos + up)
 					if --a plant pot is over a bucket
-					tile_above == 79 or tile_above == 15 or tile_above == 135
+						tile_above == 79 or tile_above == 15 or tile_above == 135
 					then
-						water = water + 1 -- temporarily increase the water
-						tiles[tile_above].run(pos_above, { x = 1, y = 0, z = 0 }) -- try to water the plant
+						local keep = water -- state of the players water
+						water = true -- temporarily increase the water
+						tiles[tile_above].run(pos + up, Vec.new(1,0,0)) -- try to water the plant
 
-						if get_tile(pos_above) == 143 then -- if the plant was watered
+						if get_tile(pos + up) == 143 then -- if the plant was watered
 							set_tile(pos, 13)
-						else
-							water = water - 1
 						end
+						water = keep
 					end
 				end
 
 				-- press T to show the positions of all targets
-				if show_FPS and tile == 192 and keyp(20) then
-					set_tile(pos,0)
-					trace("{x="..x..",y="..y..",z="..z.."}")
+				if debug_mode and tile == 192 and keyp(20) then
+					set_tile(pos, 0)
+					trace(tostring(pos))
 				end
 
 				-- flags 6 (dark blue) means that a block can be affected by gravity
-				if fget(tile, 6) and not fget(get_tile({x=x,y=y,z=z-1}),0) then
-					push_tile(pos, { x = 0, y = 0, z = -1 })
+				if fget(tile, 6) and not fget(get_tile(pos - up), 0) then
+					push_tile(pos, Vec.new(0,0,-1))
 				end
 
 			end
@@ -697,7 +738,7 @@ function TIC()
 			"PLANT PUSH"
 			or
 			(current_level == num_levels and
-				"Thanks"..(platform == "desktop" and "\n\n\n" or "\n").."for playing :)"
+				"Thanks" .. (platform == "desktop" and "\n\n\n" or "\n") .. "for playing :)"
 				or
 				"Level    " .. current_level
 			),
@@ -756,10 +797,10 @@ function TIC()
 			Text("Swipe to move camera", 28, 128, 15, 1, false)
 		end
 
-		if water == 0 and camera_zoom > 7 and watered_plants == 0 then
+		if not water and camera_zoom > 7 and watered_plants == 0 then
 			Text("Try collecting \nsome water", 140, 13, 15, 1, false)
 		end
-		if water > 0 and watered_plants == 0 then
+		if water and watered_plants == 0 then
 			Text(" Water ->\n is used\n to grow plants", 140, 13, 15, 1, false)
 		end
 		if watered_plants > 0 then
@@ -870,10 +911,10 @@ function TIC()
 	if current_level == 3 then
 		if watered_plants == 1 and --the pot is on the platform
 			(function()
-				local found = get_tile({ x = 4, y = 5, z = 3 }) == 79 or get_tile({ x = 6, y = 7, z = 3 }) == 79
-				local centre = { x = 6, y = 5, z = 3 }
+				local found = get_tile(Vec.new(4,5,3)) == 79 or get_tile(Vec.new(6,7,3)) == 79
+				local centre = Vec.new(6,5,3)
 				for i = 1, 8 do
-					if get_tile({ x = centre.x + a[i][1], y = centre.y + a[i][2], z = centre.z }) == 79 then
+					if get_tile(centre + Vec.new(a[i][1],a[i][2],0)) == 79 then
 						found = true
 					end
 				end
@@ -885,95 +926,69 @@ function TIC()
 			Text("Plants push objects \nup when they grow", 0, 0, 15, 1, false)
 		end
 		local lfs = shuffle({ -- leaf colour should change
-		{2,6,5},{2,7,5},{3,6,5},{3,7,5},{6,7,6},
-		{3,8,5},{8,9,6},{6,8,6},{7,7,6},{1,8,5},
-		{9,6,4},{8,6,4},{1,6,5},{1,7,5},{2,8,5},
-		{6,9,6},{8,8,6},{9,5,4},{7,9,6},{8,7,6},
-		{8,4,4},{9,4,4},{7,8,6},{8,5,4},{10,4,4},
-		{10,5,4},{10,6,4}
+			{ 2, 6, 5 }, { 2, 7, 5 }, { 3, 6, 5 }, { 3, 7, 5 }, { 6, 7, 6 },
+			{ 3, 8, 5 }, { 8, 9, 6 }, { 6, 8, 6 }, { 7, 7, 6 }, { 1, 8, 5 },
+			{ 9, 6, 4 }, { 8, 6, 4 }, { 1, 6, 5 }, { 1, 7, 5 }, { 2, 8, 5 },
+			{ 6, 9, 6 }, { 8, 8, 6 }, { 9, 5, 4 }, { 7, 9, 6 }, { 8, 7, 6 },
+			{ 8, 4, 4 }, { 9, 4, 4 }, { 7, 8, 6 }, { 8, 5, 4 }, { 10, 4, 4 },
+			{ 10, 5, 4 }, { 10, 6, 4 }
 		})
 		if watered_plants == 1 and just_watered then
-			for p = 1 , 9 do
-				set_tile({x=lfs[p][1],y=lfs[p][2],z=lfs[p][3]},69)
+			for p = 1, 9 do
+				set_tile(Vec.new(lfs[p][1],lfs[p][2],lfs[p][3]), 69)
 			end
 		end
 		if watered_plants == 2 and just_watered then
-			for i , v in pairs(lfs) do
-				set_tile({x=v[1],y=v[2],z=v[3]},69)
+			for i, v in pairs(lfs) do
+				set_tile(Vec.new(v[1],v[2],v[3]), 69)
 			end
-		end
-	end
-	if current_level == 5 then
-		if watered_plants == 0 and (player.pos.z == 3 or player.pos.z == 2) then
-			Text("Think \nOUTSIDE\nthe box", 0, 0, 15, 1, false)
-		end
-		if watered_plants == 1 and just_watered then
-			for i , v in pairs({{2,6,0},{0,6,0},{5,11,0},{7,1,0},{11,1,0},{11,2,0}}) do
-				set_tile({x=v[1],y=v[2],z=v[3]},133)
-			end
-		end
-
-		if
-			watered_plants == plants and
-			not (
-				get_tile({x=5,y=4,z=2}) == 13 or
-				get_tile({x=7,y=6,z=2}) == 13
-			)
-		then
-			Text("How will you climb up?", 0, 0, 15, 1, false)
 		end
 	end
 	if current_level == 6 then
 		-- the numbers of unwatered plant found on each layer
-		local found_S = {0,0,0}
+		local found_S = { 0, 0, 0 }
 		-- the numbers of watered plant found on each layer
-		local found_W = {0,0,0}
+		local found_W = { 0, 0, 0 }
 		for z = 1, 3 do
 
 			for y = 0, layer_height - 1 do
 				for x = 0, layer_width - 1 do
-					if get_tile({x=x,y=y,z=z}) == 79 then
+					local p = Vec.new(x,y,z)
+					if get_tile(p) == 79 then
 						found_S[z] = found_S[z] + 1
 					end
-					if get_tile({x=x,y=y,z=z}) == 143 then
-						found_W[z] =found_W[z] + 1
+					if get_tile(p) == 143 then
+						found_W[z] = found_W[z] + 1
 					end
 				end
 			end
 
 		end
 
-		found_T = (found_S[1]+found_W[1])..(found_S[2]+found_W[2])..(found_S[3]+found_W[3])
-		found_S = found_S[1]..found_S[2]..found_S[3]
-		found_W = found_W[1]..found_W[2]..found_W[3]
+		found_T = (found_S[1] + found_W[1]) .. (found_S[2] + found_W[2]) .. (found_S[3] + found_W[3])
+		found_S = found_S[1] .. found_S[2] .. found_S[3]
+		found_W = found_W[1] .. found_W[2] .. found_W[3]
 
 		if found_S == "111" then
 			Text("It's best to make sure\nthe plants don't fall", 132, 2, 15, 1, false)
 		elseif found_T ~= "111" then
 			Text("Oops!\n You might want \n to restart", 132, 2, 15, 1, false)
-		elseif watered_plants == 1 then
-			if found_W ==  "100" and string.match(found_S,"[01][01][01]") then
-				Text("\n OK, go for \n the next one", 132, 2, 15, 1, false)
-			end
-			if found_W ==  "010" then
-				Text(" Well done \n for figuring that out.\n Now try again", 132, 2, 15, 1, false)
-			end
 		end
 
 	end
-	if current_level == 7 then
-		if get_tile({x=2,y=2,z=2}) == 198 then
-			Text("Water can be stored", 14, 113, 15, 1, false)
-		elseif get_tile({x=2,y=2,z=2}) == 13 then
-			Text("Only once", 14, 113, 15, 1, false)
+	if current_level == 11 then
+		if get_tile(Vec.new(9,5,1)) == 64 then
+			pmem(1, 0)
+			reset()
 		end
 	end
 
 	dwatered_plants = math.min(lerp(dwatered_plants, watered_plants, 0.2), plants)
-	dwater = lerp(dwater, water, 0.2)
-	Progressbar(190, 2, 40, dwatered_plants / plants, watered_plants == plants and 14 or 11)
-	Progressbar(190, 12, 40, dwater / max_water, 10)
-	if show_FPS then FPS() end
+	dwater = lerp(dwater, water and 1 or 0, 0.2)
+	Progressbar(190, 2, 40,dwatered_plants / plants,watered_plants == plants and 14 or 11)
+	Progressbar(190, 12, 40, dwater, 10)
+	if debug_mode then FPS() end
+	prev_mouse = ({ mouse() })
 	t = t + 1
 end
 
@@ -995,6 +1010,10 @@ function update_cam()
 		end
 		if not any_button_pressed then
 			mouse_data = ({ mouse() })
+			local mobile_threshold = {
+				move = 7,
+				zoom = 2
+			}
 			if mouse_data[1] > mobile_threshold.move or mouse_data[1] < -mobile_threshold.move then
 				move = mouse_data[1] * 0.75
 			elseif mouse_data[2] > mobile_threshold.zoom or mouse_data[2] < -mobile_threshold.zoom then
@@ -1008,14 +1027,18 @@ function update_cam()
 		if btn(3) then move = 20 end
 		if btn(2) then move = move - 20 end
 	end
-	if tcamera_incline - (zoom * (math.pi / 36)) < math.pi / 6 + math.pi / 16 then zoom = 0 end
-	tcamera_incline = clamp(
-		tcamera_incline - (zoom * (math.pi / 36))
-		, math.pi / 6 + math.pi / 16, math.pi / 2 - math.pi / 16
-	)
+
+	if tcamera_incline - (zoom * (math.pi / 36)) < math.pi / 6 + math.pi / 16 then
+		zoom = 0
+	end
 	tcamera_angle = (tcamera_angle - (move * delta_time * 0.2)) % (math.pi * 2)
+	
 	if not level_trans then
 		tcamera_zoom = clamp(tcamera_zoom + zoom, 4, 16)
+		tcamera_incline = clamp(
+			tcamera_incline - (zoom * (math.pi / 36))
+			, math.pi / 6 + math.pi / 16, math.pi / 2 - math.pi / 16
+		)
 	end
 
 	if input_mode == "" then
@@ -1055,23 +1078,28 @@ function renderVoxelScene()
 					for lx = 0, layer_width - 1 do
 						ct = get_tile({ x = lx, y = ly, z = layer })
 						if not fget(ct, 3) then
-							wallQuad(x1 + camera_zoom * (1 + lx), y1 + camera_zoom * (ly), z1, x1 + camera_zoom * (1 + lx), y1 + camera_zoom * (1 + ly), z2, 8 * lx + 7.99 + tex_offset, 8 * ly, 8 * lx + tex_offset, 8 * ly + 7.99, fget(ct, 4), fget(ct, 5))
+							wallQuad(x1 + camera_zoom * (1 + lx), y1 + camera_zoom * (ly), z1, x1 + camera_zoom * (1 + lx),
+								y1 + camera_zoom * (1 + ly), z2, 8 * lx + 7.99 + tex_offset, 8 * ly, 8 * lx + tex_offset, 8 * ly + 7.99,
+								fget(ct, 4), fget(ct, 5))
 						else
-							if show_FPS then nulls = nulls + 1 end
+							if debug_mode then nulls = nulls + 1 end
 						end
 					end
 				else
 					for lx = layer_width - 1, 0, -1 do
 						ct = get_tile({ x = lx, y = ly, z = layer })
 						if not fget(ct, 3) then
-							wallQuad(x1 + camera_zoom * (lx), y1 + camera_zoom * (1 + ly), z1, x1 + camera_zoom * (lx), y1 + camera_zoom * (ly), z2, 8 * lx + tex_offset, 8 * ly, 8 * lx + 7.99 + tex_offset, 8 * ly + 7.99, fget(ct, 4), fget(ct, 5))
+							wallQuad(x1 + camera_zoom * (lx), y1 + camera_zoom * (1 + ly), z1, x1 + camera_zoom * (lx),
+								y1 + camera_zoom * (ly), z2, 8 * lx + tex_offset, 8 * ly, 8 * lx + 7.99 + tex_offset, 8 * ly + 7.99, fget(ct, 4)
+								, fget(ct, 5))
 						else
-							if show_FPS then nulls = nulls + 1 end
+							if debug_mode then nulls = nulls + 1 end
 						end
 					end
 				end
 				setTexturesToFace(tile_offset, ly, layer_width, 0, 1)
-				wallQuad(x1, y1 + camera_zoom * (ly + 1), z1, x2, y1 + camera_zoom * (ly + 1), z2, tex_offset, 8 * ly, 8 * layer_width + tex_offset, 8 * ly + 7.99)
+				wallQuad(x1, y1 + camera_zoom * (ly + 1), z1, x2, y1 + camera_zoom * (ly + 1), z2, tex_offset, 8 * ly,
+					8 * layer_width + tex_offset, 8 * ly + 7.99)
 			end
 		else
 			for ly = layer_height - 1, 0, -1 do
@@ -1080,23 +1108,28 @@ function renderVoxelScene()
 					for lx = 0, layer_width - 1 do
 						ct = get_tile({ x = lx, y = ly, z = layer })
 						if not fget(ct, 3) then
-							wallQuad(x1 + camera_zoom * (1 + lx), y1 + camera_zoom * (ly), z1, x1 + camera_zoom * (1 + lx), y1 + camera_zoom * (1 + ly), z2, 8 * lx + 7.99 + tex_offset, 8 * ly, 8 * lx + tex_offset, 8 * ly + 7.99, fget(ct, 4), fget(ct, 5))
+							wallQuad(x1 + camera_zoom * (1 + lx), y1 + camera_zoom * (ly), z1, x1 + camera_zoom * (1 + lx),
+								y1 + camera_zoom * (1 + ly), z2, 8 * lx + 7.99 + tex_offset, 8 * ly, 8 * lx + tex_offset, 8 * ly + 7.99,
+								fget(ct, 4), fget(ct, 5))
 						else
-							if show_FPS then nulls = nulls + 1 end
+							if debug_mode then nulls = nulls + 1 end
 						end
 					end
 				else
 					for lx = layer_width - 1, 0, -1 do
 						ct = get_tile({ x = lx, y = ly, z = layer })
 						if not fget(ct, 3) then
-							wallQuad(x1 + camera_zoom * (lx), y1 + camera_zoom * (1 + ly), z1, x1 + camera_zoom * (lx), y1 + camera_zoom * (ly), z2, 8 * lx + tex_offset, 8 * ly, 8 * lx + 7.99 + tex_offset, 8 * ly + 7.99, fget(ct, 4), fget(ct, 5))
+							wallQuad(x1 + camera_zoom * (lx), y1 + camera_zoom * (1 + ly), z1, x1 + camera_zoom * (lx),
+								y1 + camera_zoom * (ly), z2, 8 * lx + tex_offset, 8 * ly, 8 * lx + 7.99 + tex_offset, 8 * ly + 7.99, fget(ct, 4)
+								, fget(ct, 5))
 						else
-							if show_FPS then nulls = nulls + 1 end
+							if debug_mode then nulls = nulls + 1 end
 						end
 					end
 				end
 				setTexturesToFace(tile_offset, ly, layer_width, 0, 1)
-				wallQuad(x2, y1 + camera_zoom * (ly), z1, x1, y1 + camera_zoom * (ly), z2, 8 * layer_width + tex_offset, 8 * ly, tex_offset, 8 * ly + 7.99)
+				wallQuad(x2, y1 + camera_zoom * (ly), z1, x1, y1 + camera_zoom * (ly), z2, 8 * layer_width + tex_offset, 8 * ly,
+					tex_offset, 8 * ly + 7.99)
 			end
 		end
 
@@ -1111,19 +1144,31 @@ end
 function wallQuad(x1, y1, z1, x2, y2, z2, u1, v1, u2, v2, plain, trans_enabled)
 	if trans_enabled == nil then trans_enabled = true end
 	if plain then
-		tri(x1 * cc - y1 * ss + 120, (y1 * cc + x1 * ss) * phicos - z1 * phisin + 68, x1 * cc - y1 * ss + 120, (y1 * cc + x1 * ss) * phicos - z2 * phisin + 68, x2 * cc - y2 * ss + 120, (y2 * cc + x2 * ss) * phicos - z1 * phisin + 68, colors[ct])
-		tri(x2 * cc - y2 * ss + 120, (y2 * cc + x2 * ss) * phicos - z2 * phisin + 68, x1 * cc - y1 * ss + 120, (y1 * cc + x1 * ss) * phicos - z2 * phisin + 68, x2 * cc - y2 * ss + 120, (y2 * cc + x2 * ss) * phicos - z1 * phisin + 68, colors[ct])
-		if show_FPS then tris = tris + 1 end
+		tri(x1 * cc - y1 * ss + 120, (y1 * cc + x1 * ss) * phicos - z1 * phisin + 68, x1 * cc - y1 * ss + 120,
+			(y1 * cc + x1 * ss) * phicos - z2 * phisin + 68, x2 * cc - y2 * ss + 120,
+			(y2 * cc + x2 * ss) * phicos - z1 * phisin + 68, colors[ct])
+		tri(x2 * cc - y2 * ss + 120, (y2 * cc + x2 * ss) * phicos - z2 * phisin + 68, x1 * cc - y1 * ss + 120,
+			(y1 * cc + x1 * ss) * phicos - z2 * phisin + 68, x2 * cc - y2 * ss + 120,
+			(y2 * cc + x2 * ss) * phicos - z1 * phisin + 68, colors[ct])
+		if debug_mode then tris = tris + 1 end
 	else
-		textri(x1 * cc - y1 * ss + 120, (y1 * cc + x1 * ss) * phicos - z1 * phisin + 68, x1 * cc - y1 * ss + 120, (y1 * cc + x1 * ss) * phicos - z2 * phisin + 68, x2 * cc - y2 * ss + 120, (y2 * cc + x2 * ss) * phicos - z1 * phisin + 68, u1, v1, u1, v2, u2, v1, true, trans_enabled and transparency or -1)
-		textri(x2 * cc - y2 * ss + 120, (y2 * cc + x2 * ss) * phicos - z2 * phisin + 68, x1 * cc - y1 * ss + 120, (y1 * cc + x1 * ss) * phicos - z2 * phisin + 68, x2 * cc - y2 * ss + 120, (y2 * cc + x2 * ss) * phicos - z1 * phisin + 68, u2, v2, u1, v2, u2, v1, true, trans_enabled and transparency or -1)
-		if show_FPS then texs = texs + 1 end
+		textri(x1 * cc - y1 * ss + 120, (y1 * cc + x1 * ss) * phicos - z1 * phisin + 68, x1 * cc - y1 * ss + 120,
+			(y1 * cc + x1 * ss) * phicos - z2 * phisin + 68, x2 * cc - y2 * ss + 120,
+			(y2 * cc + x2 * ss) * phicos - z1 * phisin + 68, u1, v1, u1, v2, u2, v1, true, trans_enabled and transparency or -1)
+		textri(x2 * cc - y2 * ss + 120, (y2 * cc + x2 * ss) * phicos - z2 * phisin + 68, x1 * cc - y1 * ss + 120,
+			(y1 * cc + x1 * ss) * phicos - z2 * phisin + 68, x2 * cc - y2 * ss + 120,
+			(y2 * cc + x2 * ss) * phicos - z1 * phisin + 68, u2, v2, u1, v2, u2, v1, true, trans_enabled and transparency or -1)
+		if debug_mode then texs = texs + 1 end
 	end
 end
 
 function floorQuad(x1, y1, z1, x2, y2, z2, u1, v1, u2, v2)
-	textri(x1 * cc - y1 * ss + 120, (y1 * cc + x1 * ss) * phicos - z1 * phisin + 68, x2 * cc - y1 * ss + 120, (y1 * cc + x2 * ss) * phicos - z1 * phisin + 68, x1 * cc - y2 * ss + 120, (y2 * cc + x1 * ss) * phicos - z2 * phisin + 68, u1, v1, u2, v1, u1, v2, true, transparency)
-	textri(x2 * cc - y2 * ss + 120, (y2 * cc + x2 * ss) * phicos - z2 * phisin + 68, x2 * cc - y1 * ss + 120, (y1 * cc + x2 * ss) * phicos - z1 * phisin + 68, x1 * cc - y2 * ss + 120, (y2 * cc + x1 * ss) * phicos - z2 * phisin + 68, u2, v2, u2, v1, u1, v2, true, transparency)
+	textri(x1 * cc - y1 * ss + 120, (y1 * cc + x1 * ss) * phicos - z1 * phisin + 68, x2 * cc - y1 * ss + 120,
+		(y1 * cc + x2 * ss) * phicos - z1 * phisin + 68, x1 * cc - y2 * ss + 120,
+		(y2 * cc + x1 * ss) * phicos - z2 * phisin + 68, u1, v1, u2, v1, u1, v2, true, transparency)
+	textri(x2 * cc - y2 * ss + 120, (y2 * cc + x2 * ss) * phicos - z2 * phisin + 68, x2 * cc - y1 * ss + 120,
+		(y1 * cc + x2 * ss) * phicos - z1 * phisin + 68, x1 * cc - y2 * ss + 120,
+		(y2 * cc + x1 * ss) * phicos - z2 * phisin + 68, u2, v2, u2, v1, u1, v2, true, transparency)
 end
 
 function setTexturesToFace(i1, j1, w, h, faceID)
@@ -1275,9 +1320,10 @@ function emitter_point(p, params)
 	p.vx = frnd(params.maxstartvx - params.minstartvx) + params.minstartvx
 	p.vy = frnd(params.maxstartvy - params.minstartvy) + params.minstartvy
 end
+
 function emitter_screen(p, params)
-	p.ax = math.random(0,240)
-	p.ay = math.random(0,136)
+	p.ax = math.random(0, 240)
+	p.ay = math.random(0, 136)
 
 	p.x = 0
 	p.y = 0
@@ -1286,8 +1332,8 @@ function emitter_screen(p, params)
 end
 
 function affect_wrap(p, params)
-	p.x = (p.ax + (camera_angle/(math.pi*2))*240*2) % 240
-	p.y = (p.ay - (camera_incline/(math.pi*2))*136*4) % 136
+	p.x = (p.ax + (camera_angle / (math.pi * 2)) * 240 * 2) % 240
+	p.y = (p.ay - (camera_incline / (math.pi * 2)) * 136 * 4) % 136
 end
 
 function draw_ps_pix(ps, params)
@@ -1354,8 +1400,9 @@ function stars()
 	table.insert(ps.drawfuncs,
 		{
 			drawfunc = draw_ps_pix,
-			params = { colors = {15} }
+			params = { colors = { 15 } }
 		}
 	)
 end
+
 stars()
