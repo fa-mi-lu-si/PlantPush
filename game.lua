@@ -7,7 +7,7 @@
 -- settings
 debug_mode = false
 force_gamepad = false
-start_level = 0
+start_level = 4
 
 
 -- voxel scene variables
@@ -90,16 +90,17 @@ Vec = {
 	},
 }
 
-up = Vec.new(0,0,1)
+up = Vec.new(0, 0, 1)
 
 -- game variables
 local t = 0 -- times the game has updated
 start_time = time()
 
+jump_start_time = 0
+player_updated = false
 plants = 0 -- number of plants in the level
 watered_plants = 0
 water = false
-replace = { 0, 0 } -- replace the first tile with the second
 portal_pos = nil
 
 -- used for smooth ui animations
@@ -110,6 +111,45 @@ dwater = 0
 
 tiles = {} -- tile data
 
+tiles[64] = {
+	name = "player",
+	run = function() end,
+	update = function(pos)
+		-- prevents the player from updating after being moved
+		if player_updated then return else player_updated = true end
+
+		local direction = Vec.new(0, 0, 0) -- the direction the player wants to move
+
+		-- if the player is on solid ground
+		if fget(get_tile(pos - up), 0) then
+			jump_start_time = 0
+			if input("Jump") then
+				direction.z = 1
+				jump_start_time = time()
+			end
+		end
+
+		if time() - jump_start_time > 500 then
+			jump_start_time = 0
+		end
+
+		-- map keyboard buttons to directions based on camera rotation
+		local r = math.floor((((camera_angle + (math.pi / 4)) % (math.pi * 2)) / (math.pi * 2)) * 4)
+		local dirs = "WASDWASD"
+
+		for i = 1, 4 do
+			local s = dirs:sub(i + 4 - r, i + 4 - r)
+
+			if input(s) or input("a" .. s) then
+				direction = Vec.new(a[i][1], a[i][2], 0)
+				jump_start_time = 0
+			end
+		end
+
+		fset(64,6,jump_start_time == 0)
+		push_tile(pos, direction)
+	end
+}
 tiles[15] = {
 	name = "plant_pot",
 	run = function(pos, dir)
@@ -118,7 +158,7 @@ tiles[15] = {
 
 		local tile_above = get_tile(pos + up)
 		if fget(tile_above, 2) then
-			push_tile(pos + up , up)
+			push_tile(pos + up, up)
 		end
 
 		tile_above = get_tile(pos + up)
@@ -138,15 +178,24 @@ tiles[15] = {
 			sfx(2)
 			set_tile(portal_pos, 77)
 		end
+	end,
+	update = function(pos)
+		if get_tile(pos - up) == 14 or get_tile(pos - up) == 136 then
+			local keep = water
+			water = true
+			tiles[get_tile(pos)].run(pos, Vec.new(1, 0, 0))
+			water = keep
+
+			if get_tile(pos) == 143 then
+				set_tile(pos - up, 13)
+			end
+		end
 	end
 }
 tiles[79] = {
 	name = "plant_pot_pushable",
-	run = tiles[15].run
-}
-tiles[135] = {
-	name = "plant_pot_no_gravity",
-	run = tiles[15].run
+	run = tiles[15].run,
+	update = tiles[15].update
 }
 tiles[14] = {
 	name = "bucket_pushable",
@@ -155,31 +204,56 @@ tiles[14] = {
 			water = true
 			set_tile(pos, 13)
 		end
+	end,
+	update = function(pos)
+		if not water then
+			set_tile(pos, 136)
+		end
 	end
 }
 tiles[136] = {
 	name = "bucket",
-	run = tiles[14].run
+	run = tiles[14].run,
+	update = function(pos)
+		if water then
+			set_tile(pos, 14)
+		end
+	end
 }
 tiles[198] = {
 	name = "empty_bucket",
 	run = function(pos, dir)
-		if water then 
+		if water then
 			set_tile(pos, 14)
 			water = false
 		end
-	end
+	end,
+	update = function(pos) end
 }
 tiles[197] = {
 	name = "empty_bucket_pushable",
-	run = tiles[198].run
+	run = tiles[198].run,
+	update = function(pos) end
 }
 tiles[77] = {
 	name = "portal",
 	run = function(pos, dir)
 		if current_level == num_levels or watered_plants < plants then return end
 		change_level(false, -2)
+	end,
+	update = function(pos) end
+}
+tiles[192] = {
+	name = "target",
+	run = function(pos, dir) end,
+	update = function(pos)
+		if debug_mode and keyp(20) then
+			-- press t to trace positions of all targets in the level
+			set_tile(pos, 0)
+			trace(tostring(pos))
+		end
 	end
+
 }
 
 function push_tile(pos, direction)
@@ -193,7 +267,7 @@ function push_tile(pos, direction)
 	local target_pos = pos + direction
 
 	if -- if the target position is out of the level
-		target_pos.x < 0 or target_pos.x > layer_width - 1
+	target_pos.x < 0 or target_pos.x > layer_width - 1
 		or target_pos.y < 0 or target_pos.y > layer_height - 1
 		or target_pos.z < 0 or target_pos.z > num_layers - 1
 	then return
@@ -202,7 +276,7 @@ function push_tile(pos, direction)
 	local target_tile = get_tile(target_pos)
 
 	if target_tile == 129 then -- fall into water
-		if self == 79 or self == 15 or self == 135 then
+		if self == 79 or self == 15 or self == 64 then
 			change_level(true, -4)
 		end
 		set_tile(pos, 0)
@@ -212,6 +286,11 @@ function push_tile(pos, direction)
 	if fget(target_tile, 2) then -- pushable tiles have flag 2 yellow
 		push_tile(target_pos, direction)
 		target_tile = get_tile(target_pos) -- update the target_tile
+	end
+
+	if fget(target_tile, 1) and self == 64 then -- interactable tiles have flag 1 orange
+		tiles[target_tile].run(target_pos, direction)
+		target_tile = get_tile(target_pos)
 	end
 
 	if not fget(target_tile, 0) then
@@ -249,7 +328,7 @@ end
 colors = {}
 for i = 0, 255 do
 	if fget(i, 4) then
-		colors[i] = peek4((0x4000 + (i) * 32) * 2 + 1 % 8 + 1 % 8 * 8) -- get a pixel from the sheet at i
+		colors[i] = peek4((0x4000 + i * 32) * 2 + 1 % 8 + 1 % 8 * 8) -- get a pixel from the sheet at i
 	end
 end
 
@@ -277,7 +356,6 @@ function set_level_data(level)
 	watered_plants = 0
 	water = false
 	plants = 0
-	player.jumping = false
 
 	-- copy the map data
 	if level > 7 then
@@ -301,15 +379,14 @@ function set_level_data(level)
 	for x = 0, layer_width - 1 do
 		for y = 0, layer_height - 1 do
 			for z = 0, num_layers - 1 do
-				local pos = Vec.new(x,y,z)
+				local pos = Vec.new(x, y, z)
 				local tile = get_tile(pos)
 
 				if tile == 64 then
-					player.pos = pos
 					portal_pos = pos
 				end
 
-				if tile == 79 or tile == 15 or tile == 135 then
+				if tile == 79 or tile == 15 then
 					plants = plants + 1
 				end
 			end
@@ -358,10 +435,6 @@ function FPS()
 		"\nnot Tex : " .. tris ..
 		"\nblank : " .. nulls,
 		0, 136 - 32
-	)
-	print(
-		"Player at\n" .. player.pos,
-		0, 64
 	)
 end
 
@@ -431,138 +504,12 @@ prev_mouse = {}
 
 function input(action)
 	if input_mode == "keyboard" then
-		if (action == "W" and ({ mouse() })[3] and not prev_mouse[3]) or
-			(action == "Jump" and ({ mouse() })[4] and not prev_mouse[4]) or
-			(action == "S" and ({ mouse() })[5] and not prev_mouse[5])
-		then
-			return true
-		end
 		return keyp(kbd[action])
 	elseif input_mode == "gamepad" then
 		return btnp(btns[action]) and not btn(7)
 	end
 end
 
---
-
-player = {
-	pos =  Vec.new(0,0,0),
-
-	jumping = false,
-	jump_start_time = 0,
-	jump_allowed = true,
-
-	update = function(self)
-
-		-- check for input
-		local direction = Vec.new(0,0,0) -- the direction the player wants to move
-
-		-- if the player is on solid ground
-		if fget(get_tile(self.pos - up), 0) then
-			self.jump_allowed = true
-			self.jumping = false
-		else
-			self.jump_allowed = false
-
-			if self.jumping then
-				if time() - self.jump_start_time > 500 then
-					self.jumping = false
-					self.jump_start_time = 0
-				end
-			else
-				if self.pos.z == 0 then
-					change_level(true, -4)
-					return
-				end
-				direction.z = -1
-			end
-		end
-
-		if input("Jump") and self.jump_allowed then
-			direction.z = 1
-			self.jumping = true
-			self.jump_start_time = time()
-		end
-
-		-- map keyboard buttons to directions based on camera rotation
-		local r = math.floor((((camera_angle + (math.pi / 4)) % (math.pi * 2)) / (math.pi * 2)) * 4)
-		local n, s, e, w -- directons
-		if r == 0 then
-			n = "W"
-			s = "S"
-			e = "A"
-			w = "D"
-		elseif r == 1 then
-			n = "D"
-			s = "A"
-			e = "W"
-			w = "S"
-		elseif r == 2 then
-			n = "S"
-			s = "W"
-			e = "D"
-			w = "A"
-		elseif r == 3 then
-			n = "A"
-			s = "D"
-			e = "S"
-			w = "W"
-		end
-
-		local moved = true
-		if input(n) or input("a" .. n) then
-			direction.y = -1
-		elseif input(s) or input("a" .. s) then
-			direction.y = 1
-		elseif input(e) or input("a" .. e) then
-			direction.x = -1
-		elseif input(w) or input("a" .. w) then
-			direction.x = 1
-		else
-			moved = false
-		end
-
-		if moved then
-			self.jumping = false
-		end
-
-		local target_pos = self.pos + direction
-		local target_pos = Vec.new(
-			clamp(target_pos.x, 0, layer_width - 1),
-			clamp(target_pos.y, 0, layer_height - 1),
-			clamp(target_pos.z, 0, num_layers - 1)
-		)
-		local target_tile = get_tile(target_pos)
-
-		-- fall into water
-		if target_tile == 129 then
-			change_level(true, -4)
-			return
-		end
-
-		if fget(target_tile, 2) then -- pushable tiles have flag 2 yellow
-			push_tile(target_pos, direction)
-			target_tile = get_tile(target_pos) -- update the target_tile
-		end
-
-		if fget(target_tile, 1) then -- interactable tiles have flag 1 orange
-			tiles[target_tile].run(target_pos, direction)
-			target_tile = get_tile(target_pos) -- just in case it changed
-			if camera_zoom == 0 then target_pos = self.pos end
-		end
-
-		if not fget(target_tile, 0) then -- solid tiles have flag 0 red
-			self:move(target_pos)
-		end
-
-	end,
-
-	move = function(self, pos)
-		set_tile(self.pos, 0) -- clear where the player is
-		self.pos = pos
-		set_tile(self.pos, 64) -- draw the player in it's new position
-	end
-}
 
 -- initialise the game
 set_level_data(start_level)
@@ -643,7 +590,7 @@ function TIC()
 	end
 
 	just_watered = false
-	player:update()
+	-- player:update()
 
 	if current_level == 0 then -- tutorial level
 		-- resume game or delete progress
@@ -682,46 +629,26 @@ function TIC()
 	update_cam()
 	update_psystems()
 
-	if water then replace = { 136, 14 } else replace = { 14, 136 } end
-
 	if debug_mode and keyp(20) then
 		trace("-----------\n" .. "Level " .. current_level)
 	end
 
 	-- iterate over all the tiles in the game
+	player_updated = false
+
 	for x = 0, layer_width - 1 do
 		for y = 0, layer_height - 1 do
 			for z = 0, num_layers - 1 do
-				local pos = Vec.new(x,y,z)
+				local pos = Vec.new(x, y, z)
 				local tile = get_tile(pos)
 
-				if tile == replace[1] then set_tile(pos, replace[2]) end
-
-				if tile == 14 or tile == 136 then -- for every bucket
-					local tile_above = get_tile(pos + up)
-					if --a plant pot is over a bucket
-						tile_above == 79 or tile_above == 15 or tile_above == 135
-					then
-						local keep = water -- state of the players water
-						water = true -- temporarily increase the water
-						tiles[tile_above].run(pos + up, Vec.new(1,0,0)) -- try to water the plant
-
-						if get_tile(pos + up) == 143 then -- if the plant was watered
-							set_tile(pos, 13)
-						end
-						water = keep
-					end
-				end
-
-				-- press T to show the positions of all targets
-				if debug_mode and tile == 192 and keyp(20) then
-					set_tile(pos, 0)
-					trace(tostring(pos))
+				if fget(tile, 1) then
+					tiles[tile].update(pos)
 				end
 
 				-- flags 6 (dark blue) means that a block can be affected by gravity
 				if fget(tile, 6) and not fget(get_tile(pos - up), 0) then
-					push_tile(pos, Vec.new(0,0,-1))
+					push_tile(pos, Vec.new(0, 0, -1))
 				end
 
 			end
@@ -911,10 +838,10 @@ function TIC()
 	if current_level == 3 then
 		if watered_plants == 1 and --the pot is on the platform
 			(function()
-				local found = get_tile(Vec.new(4,5,3)) == 79 or get_tile(Vec.new(6,7,3)) == 79
-				local centre = Vec.new(6,5,3)
+				local found = get_tile(Vec.new(4, 5, 3)) == 79 or get_tile(Vec.new(6, 7, 3)) == 79
+				local centre = Vec.new(6, 5, 3)
 				for i = 1, 8 do
-					if get_tile(centre + Vec.new(a[i][1],a[i][2],0)) == 79 then
+					if get_tile(centre + Vec.new(a[i][1], a[i][2], 0)) == 79 then
 						found = true
 					end
 				end
@@ -935,12 +862,12 @@ function TIC()
 		})
 		if watered_plants == 1 and just_watered then
 			for p = 1, 9 do
-				set_tile(Vec.new(lfs[p][1],lfs[p][2],lfs[p][3]), 69)
+				set_tile(Vec.new(lfs[p][1], lfs[p][2], lfs[p][3]), 69)
 			end
 		end
 		if watered_plants == 2 and just_watered then
 			for i, v in pairs(lfs) do
-				set_tile(Vec.new(v[1],v[2],v[3]), 69)
+				set_tile(Vec.new(v[1], v[2], v[3]), 69)
 			end
 		end
 	end
@@ -953,7 +880,7 @@ function TIC()
 
 			for y = 0, layer_height - 1 do
 				for x = 0, layer_width - 1 do
-					local p = Vec.new(x,y,z)
+					local p = Vec.new(x, y, z)
 					if get_tile(p) == 79 then
 						found_S[z] = found_S[z] + 1
 					end
@@ -965,19 +892,15 @@ function TIC()
 
 		end
 
-		found_T = (found_S[1] + found_W[1]) .. (found_S[2] + found_W[2]) .. (found_S[3] + found_W[3])
-		found_S = found_S[1] .. found_S[2] .. found_S[3]
-		found_W = found_W[1] .. found_W[2] .. found_W[3]
-
-		if found_S == "111" then
+		if (found_S[1] .. found_S[2] .. found_S[3]) == "111" then
 			Text("It's best to make sure\nthe plants don't fall", 132, 2, 15, 1, false)
-		elseif found_T ~= "111" then
+		elseif ((found_S[1] + found_W[1]) .. (found_S[2] + found_W[2]) .. (found_S[3] + found_W[3])) ~= "111" then
 			Text("Oops!\n You might want \n to restart", 132, 2, 15, 1, false)
 		end
 
 	end
-	if current_level == 11 then
-		if get_tile(Vec.new(9,5,1)) == 64 then
+	if current_level == num_levels then
+		if get_tile(Vec.new(9, 5, 1)) == 64 then
 			pmem(1, 0)
 			reset()
 		end
@@ -985,7 +908,7 @@ function TIC()
 
 	dwatered_plants = math.min(lerp(dwatered_plants, watered_plants, 0.2), plants)
 	dwater = lerp(dwater, water and 1 or 0, 0.2)
-	Progressbar(190, 2, 40,dwatered_plants / plants,watered_plants == plants and 14 or 11)
+	Progressbar(190, 2, 40, dwatered_plants / plants, watered_plants == plants and 14 or 11)
 	Progressbar(190, 12, 40, dwater, 10)
 	if debug_mode then FPS() end
 	prev_mouse = ({ mouse() })
@@ -1032,7 +955,7 @@ function update_cam()
 		zoom = 0
 	end
 	tcamera_angle = (tcamera_angle - (move * delta_time * 0.2)) % (math.pi * 2)
-	
+
 	if not level_trans then
 		tcamera_zoom = clamp(tcamera_zoom + zoom, 4, 16)
 		tcamera_incline = clamp(
