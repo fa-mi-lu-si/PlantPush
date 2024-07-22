@@ -6,8 +6,9 @@
 
 -- settings
 debug_mode = false
+debug_allowed = true
 force_gamepad = false
-start_level = 4
+start_level = 0
 
 
 -- voxel scene variables
@@ -28,6 +29,11 @@ tcamera_incline = math.pi * 0.3
 tcamera_zoom = 4
 
 -- math
+a = { -- important list of directions
+	{ 0, -1 }, { -1, 0 }, { 0, 1 }, { 1, 0 },
+	{ -1, -1 }, { 1, 1 }, { 1, -1 }, { -1, 1 }
+}
+
 function clamp(n, low, high) return math.min(math.max(n, low), high) end
 
 function lerp(a, b, t) return (1 - t) * a + t * b end
@@ -93,10 +99,13 @@ Vec = {
 up = Vec.new(0, 0, 1)
 
 -- game variables
-local t = 0 -- times the game has updated
+local tics = 0 -- times the game has updated
 start_time = time()
 
+-- milliseconds scince the player started jumping
+-- 0 if the player is not jumping
 jump_start_time = 0
+
 player_updated = false
 plants = 0 -- number of plants in the level
 watered_plants = 0
@@ -115,7 +124,8 @@ tiles[64] = {
 	name = "player",
 	run = function() end,
 	update = function(pos)
-		-- prevents the player from updating after being moved
+		-- update the player only once a frame
+		-- even if it moves into  a position yet to be updated
 		if player_updated then return else player_updated = true end
 
 		local direction = Vec.new(0, 0, 0) -- the direction the player wants to move
@@ -124,12 +134,12 @@ tiles[64] = {
 		if fget(get_tile(pos - up), 0) then
 			jump_start_time = 0
 			if input("Jump") then
-				direction.z = 1
+				direction = up
 				jump_start_time = time()
 			end
 		end
 
-		if time() - jump_start_time > 500 then
+		if time() - jump_start_time > 1000 then
 			jump_start_time = 0
 		end
 
@@ -146,7 +156,7 @@ tiles[64] = {
 			end
 		end
 
-		fset(64,6,jump_start_time == 0)
+		fset(64, 6, jump_start_time == 0)
 		push_tile(pos, direction)
 	end
 }
@@ -253,7 +263,6 @@ tiles[192] = {
 			trace(tostring(pos))
 		end
 	end
-
 }
 
 function push_tile(pos, direction)
@@ -352,7 +361,7 @@ function set_level_data(level)
 		level = pmem(1)
 	end
 
-	-- reset the game
+	-- reset the level data
 	watered_plants = 0
 	water = false
 	plants = 0
@@ -406,7 +415,7 @@ etg = {}
 for i = 1, 20 do table.insert(etg, 0) end
 fps = 0
 function FPS()
-	if t % 12 == 0 then
+	if tics % 12 == 0 then
 		for i = 1, 19 do
 			etg[i] = etg[i + 1]
 		end
@@ -454,10 +463,6 @@ function Text(text, x, y, colour, scale, alt)
 	return n
 end
 
-a = {
-	{ 0, -1 }, { -1, 0 }, { 0, 1 }, { 1, 0 },
-	{ -1, -1 }, { 1, 1 }, { 1, -1 }, { -1, 1 }
-}
 function outlined_Text(
         text, x, y,
         color, outline_color,
@@ -510,7 +515,6 @@ function input(action)
 	end
 end
 
-
 -- initialise the game
 set_level_data(start_level)
 camera_angle = math.pi * 1.5
@@ -536,7 +540,7 @@ function TIC()
 	tris = 0
 	nulls = 0
 
-	if keyp(42) then
+	if keyp(42) and debug_allowed then
 		debug_mode = not debug_mode
 	end
 
@@ -590,7 +594,6 @@ function TIC()
 	end
 
 	just_watered = false
-	-- player:update()
 
 	if current_level == 0 then -- tutorial level
 		-- resume game or delete progress
@@ -677,7 +680,7 @@ function TIC()
 	end
 
 	-- Render the Level Progress
-	local bar_width = camera_zoom * layer_width * math.sqrt(2)
+	local bar_width = camera_zoom * layer_width * 1.4
 	Progressbar(
 		(240 - bar_width) / 2,
 		134,
@@ -912,7 +915,7 @@ function TIC()
 	Progressbar(190, 12, 40, dwater, 10)
 	if debug_mode then FPS() end
 	prev_mouse = ({ mouse() })
-	t = t + 1
+	tics = tics + 1
 end
 
 function update_cam()
@@ -954,7 +957,7 @@ function update_cam()
 	if tcamera_incline - (zoom * (math.pi / 36)) < math.pi / 6 + math.pi / 16 then
 		zoom = 0
 	end
-	tcamera_angle = (tcamera_angle - (move * delta_time * 0.2)) % (math.pi * 2)
+	tcamera_angle = (tcamera_angle - (move * delta_time * 0.5)) % (math.pi * 2)
 
 	if not level_trans then
 		tcamera_zoom = clamp(tcamera_zoom + zoom, 4, 16)
