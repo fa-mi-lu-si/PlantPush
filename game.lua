@@ -153,6 +153,7 @@ tiles[64] = {
 			if input(s) or input("a" .. s) then
 				direction = Vec.new(a[i][1], a[i][2], 0)
 				jump_start_time = 0
+				sfx(5)
 			end
 		end
 
@@ -250,6 +251,7 @@ tiles[77] = {
 	run = function(pos, dir)
 		if current_level == num_levels or watered_plants < plants then return end
 		change_level(false, -2)
+		sfx(03)
 	end,
 	update = function(pos) end
 }
@@ -305,6 +307,9 @@ function push_tile(pos, direction)
 	if not fget(target_tile, 0) then
 		set_tile(target_pos, self)
 		set_tile(pos, 0)
+		if self == 79 or self == 13 or self == 14 or self == 197 then
+			sfx(6)
+		end
 	end
 end
 
