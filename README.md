@@ -1,5 +1,11 @@
 # Plant Push
 
+![Game Splash screen gif with rotating level](assets/banner.gif)
+
+<p>
+    <img src="./assets/level%201.gif" alt="level 1" width=45%>
+    <img src="./assets/level%209.gif" alt="level 9" width=45%>
+</p>
 
 ## Installation
 The game is built with tic80
@@ -14,6 +20,10 @@ tic80 --fs . --cmd 'load game.tic & import code game.lua & run' --keepcmd --skip
 
 ## How it started
 
-Back in 2020 I started.
-This project began when I saw [this](https://tic80.com/play?cart=1229) cart on tic80 and thought it would be cool to use the mouse to control the camera.
-From there I expanded the project adding smaller features one by one until it started to look more and more like a real game.
+This project began in 2021 when I was exploring tic80 and found [this](https://tic80.com/play?cart=1229) cart.
+I thougt it would be cool to move the camera view around with the mouse so I implemented that feature.
+Then I started creating a player charachter.
+I gradually added features without much idea of how the final concept was going to look like.
+Moveable player character,
+3D coordinate system overlaid on TIC-80's tilemap,
+Basic scripting system for block-player interactions.
