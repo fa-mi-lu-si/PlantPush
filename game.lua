@@ -366,28 +366,30 @@ function set_level_data(level)
 		level = pmem(1)
 	end
 
-	-- reset the level data
+	-- reset the level variables
 	watered_plants = 0
 	water = false
 	plants = 0
 
 	-- copy the map data
-	if level > 7 then
-		for i = 0, layer_height do -- for each row of the level
-			memcpy(
-				0x08000 + 240 * i, -- dest for each row
-				(0x08000 + ((240 * 17) * (level - 8))) + 240 * i + 120,
-				(layer_width + 1) * num_layers
+	for i = 0, layer_height do -- for each row of the level
+		memcpy(
+		-- dest for each row
+			0x08000 -- start of map data
+			+ (240 * i) -- map is 240 tiles wide
+			,
+		-- the source
+			0x08000
+			+ (
+				(240 * 17) -- each level region is 17 blocks tall
+				* (level - (level > 7 and 8 or 0)) -- level > 7 : wrap back to top of map
 			)
-		end
-	else
-		for i = 0, layer_height do -- for each row of the level
-			memcpy(
-				0x08000 + 240 * i, -- dest for each row
-				(0x08000 + ((240 * 17) * (level))) + 240 * i,
-				(layer_width + 1) * num_layers
-			)
-		end
+			+ (level > 7 and 120 or 0) -- level > 7 : start at 120 instead of 0
+			+ (240 * i)
+			,
+		-- the number of tiles to copy
+			layer_map_separation * num_layers -- total width of all layers in map row
+		)
 	end
 
 	for x = 0, layer_width - 1 do
