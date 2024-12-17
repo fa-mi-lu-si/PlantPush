@@ -1,6 +1,6 @@
 # Plant Push
 
-![Game Splash screen gif with rotating level](assets/banner.gif)
+[![Game Splash screen gif with rotating level](assets/banner.gif)](https://fa-mi-lu-si.itch.io/plant-push)
 
 ## Play In Browser
 
