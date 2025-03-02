@@ -5,7 +5,11 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
   };
 
-  outputs = { self , nixpkgs ,... }: let
+  outputs = {
+    self,
+    nixpkgs,
+    ...
+  }: let
     # system should match the system you are running on
     system = "x86_64-linux";
   in {
@@ -13,13 +17,15 @@
       pkgs = import nixpkgs {
         inherit system;
       };
-    in pkgs.mkShell {
-      packages = with pkgs; [
-        tic-80
-      ];
+    in
+      pkgs.mkShell {
+        packages = with pkgs; [
+          tic-80
+          lua-language-server
+        ];
 
-      shellHook = ''
-      '';
-    };
+        shellHook = ''
+        '';
+      };
   };
 }
